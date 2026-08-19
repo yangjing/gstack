@@ -11,7 +11,8 @@ Usage: ./setup [options]
 
 Options:
   --host <name>     Install for a specific host (claude, codex, kiro, factory,
-                    opencode, openclaw, hermes, gbrain, auto). Default: claude.
+                    opencode, cursor, slate, zcode, kimi, openclaw, hermes,
+                    gbrain, auto). Default: claude.
   --model <id>      Codex model profile override. Otherwise reads Codex config.
   --prefix          Install skills with the gstack- prefix (e.g. /gstack-review).
   --no-prefix       Install skills with short names (e.g. /review). Default.
@@ -62,6 +63,10 @@ OPENCODE_SKILLS="$HOME/.config/opencode/skills"
 OPENCODE_GSTACK="$OPENCODE_SKILLS/gstack"
 CURSOR_SKILLS="$HOME/.cursor/skills"
 CURSOR_GSTACK="$CURSOR_SKILLS/gstack"
+ZCODE_SKILLS="$HOME/.zcode/skills"
+ZCODE_GSTACK="$ZCODE_SKILLS/gstack"
+KIMI_SKILLS="${KIMI_CODE_HOME:-$HOME/.kimi-code}/skills"
+KIMI_GSTACK="$KIMI_SKILLS/gstack"
 
 IS_WINDOWS=0
 case "$(uname -s)" in
@@ -177,7 +182,7 @@ MODEL_OVERRIDE=""
 MODEL_OVERRIDE_SET=0
 while [ $# -gt 0 ]; do
   case "$1" in
-    --host) [ -z "$2" ] && echo "Missing value for --host (expected claude, codex, kiro, factory, opencode, cursor, slate, openclaw, hermes, gbrain, or auto)" >&2 && exit 1; HOST="$2"; shift 2 ;;
+    --host) [ -z "$2" ] && echo "Missing value for --host (expected claude, codex, kiro, factory, opencode, cursor, slate, zcode, kimi, openclaw, hermes, gbrain, or auto)" >&2 && exit 1; HOST="$2"; shift 2 ;;
     --host=*) HOST="${1#--host=}"; shift ;;
     --model) [ -z "$2" ] && echo "Missing value for --model" >&2 && exit 1; MODEL_OVERRIDE="$2"; MODEL_OVERRIDE_SET=1; shift 2 ;;
     --model=*) MODEL_OVERRIDE="${1#--model=}"; MODEL_OVERRIDE_SET=1; shift ;;
@@ -195,7 +200,7 @@ while [ $# -gt 0 ]; do
 done
 
 case "$HOST" in
-  claude|codex|kiro|factory|opencode|cursor|slate|auto) ;;
+  claude|codex|kiro|factory|opencode|cursor|slate|zcode|kimi|auto) ;;
   openclaw)
     echo ""
     echo "OpenClaw integration uses a different model — OpenClaw spawns Claude Code"
@@ -230,7 +235,7 @@ case "$HOST" in
     echo "GBrain setup and brain skills ship from the GBrain repo."
     echo ""
     exit 0 ;;
-  *) echo "Unknown --host value: $HOST (expected claude, codex, kiro, factory, opencode, cursor, slate, openclaw, hermes, gbrain, or auto)" >&2; exit 1 ;;
+  *) echo "Unknown --host value: $HOST (expected claude, codex, kiro, factory, opencode, cursor, slate, zcode, kimi, openclaw, hermes, gbrain, or auto)" >&2; exit 1 ;;
 esac
 
 # ─── Resolve skill prefix preference ─────────────────────────
@@ -295,6 +300,8 @@ INSTALL_KIRO=0
 INSTALL_FACTORY=0
 INSTALL_OPENCODE=0
 INSTALL_CURSOR=0
+INSTALL_ZCODE=0
+INSTALL_KIMI=0
 if [ "$HOST" = "auto" ]; then
   command -v claude >/dev/null 2>&1 && INSTALL_CLAUDE=1
   command -v codex >/dev/null 2>&1 && INSTALL_CODEX=1
@@ -305,8 +312,15 @@ if [ "$HOST" = "auto" ]; then
   # reliable footprint of an installed Cursor IDE.
   command -v cursor >/dev/null 2>&1 && INSTALL_CURSOR=1
   [ -d "$HOME/.cursor" ] && INSTALL_CURSOR=1
+  # ZCode is a desktop ADE whose CLI isn't always on PATH; ~/.zcode is the
+  # reliable footprint of an installed ZCode app. Kimi Code installs the
+  # `kimi` binary under ~/.kimi-code/bin, which may not be on PATH either.
+  command -v zcode >/dev/null 2>&1 && INSTALL_ZCODE=1
+  [ -d "$HOME/.zcode" ] && INSTALL_ZCODE=1
+  command -v kimi >/dev/null 2>&1 && INSTALL_KIMI=1
+  [ -d "${KIMI_CODE_HOME:-$HOME/.kimi-code}" ] && INSTALL_KIMI=1
   # If none found, default to claude
-  if [ "$INSTALL_CLAUDE" -eq 0 ] && [ "$INSTALL_CODEX" -eq 0 ] && [ "$INSTALL_KIRO" -eq 0 ] && [ "$INSTALL_FACTORY" -eq 0 ] && [ "$INSTALL_OPENCODE" -eq 0 ] && [ "$INSTALL_CURSOR" -eq 0 ]; then
+  if [ "$INSTALL_CLAUDE" -eq 0 ] && [ "$INSTALL_CODEX" -eq 0 ] && [ "$INSTALL_KIRO" -eq 0 ] && [ "$INSTALL_FACTORY" -eq 0 ] && [ "$INSTALL_OPENCODE" -eq 0 ] && [ "$INSTALL_CURSOR" -eq 0 ] && [ "$INSTALL_ZCODE" -eq 0 ] && [ "$INSTALL_KIMI" -eq 0 ]; then
     INSTALL_CLAUDE=1
   fi
 elif [ "$HOST" = "claude" ]; then
@@ -321,6 +335,10 @@ elif [ "$HOST" = "opencode" ]; then
   INSTALL_OPENCODE=1
 elif [ "$HOST" = "cursor" ]; then
   INSTALL_CURSOR=1
+elif [ "$HOST" = "zcode" ]; then
+  INSTALL_ZCODE=1
+elif [ "$HOST" = "kimi" ]; then
+  INSTALL_KIMI=1
 fi
 
 if [ "$MODEL_OVERRIDE_SET" -eq 1 ] && [ "$INSTALL_CODEX" -eq 0 ]; then
@@ -711,6 +729,26 @@ if [ "$INSTALL_CURSOR" -eq 1 ] && [ "$NEEDS_BUILD" -eq 0 ]; then
     cd "$SOURCE_GSTACK_DIR"
     bun_cmd install --frozen-lockfile 2>/dev/null || bun_cmd install
     bun_cmd run gen:skill-docs --host cursor
+  )
+fi
+
+# 1f. Generate .zcode/ ZCode skill docs
+if [ "$INSTALL_ZCODE" -eq 1 ] && [ "$NEEDS_BUILD" -eq 0 ]; then
+  log "Generating .zcode/ skill docs..."
+  (
+    cd "$SOURCE_GSTACK_DIR"
+    bun_cmd install --frozen-lockfile 2>/dev/null || bun_cmd install
+    bun_cmd run gen:skill-docs --host zcode
+  )
+fi
+
+# 1g. Generate .kimi-code/ Kimi Code skill docs
+if [ "$INSTALL_KIMI" -eq 1 ] && [ "$NEEDS_BUILD" -eq 0 ]; then
+  log "Generating .kimi-code/ skill docs..."
+  (
+    cd "$SOURCE_GSTACK_DIR"
+    bun_cmd install --frozen-lockfile 2>/dev/null || bun_cmd install
+    bun_cmd run gen:skill-docs --host kimi
   )
 fi
 
@@ -1585,6 +1623,310 @@ link_cursor_skill_dirs() {
   fi
 }
 
+# ─── Helper: create a minimal ~/.zcode/skills/gstack runtime root ───────────
+# ZCode scans ~/.zcode/skills. Same shape as the Cursor runtime root: root
+# SKILL.md from the generated tree + the lean runtime asset pair.
+create_zcode_runtime_root() {
+  local gstack_dir="$1"
+  local zcode_gstack="$2"
+  local zcode_dir="$gstack_dir/.zcode/skills"
+  local generated_root="$zcode_dir/gstack"
+
+  if [ -L "$zcode_gstack" ]; then
+    rm -f "$zcode_gstack"
+  elif _sidecar_root_user_owned "$zcode_gstack"; then
+    # #2142: a hand-written skill squatting on the canonical name is the
+    # user's — never wipe it to make room for the runtime root.
+    echo "  left in place (existing dir not gstack-managed — no generated banner): $zcode_gstack" >&2
+    return 0
+  elif [ -d "$zcode_gstack" ] && [ "$zcode_gstack" != "$gstack_dir" ] && [ "$zcode_gstack" != "$generated_root" ]; then
+    rm -rf "$zcode_gstack"
+  fi
+
+  mkdir -p "$zcode_gstack" "$zcode_gstack/browse" "$zcode_gstack/gstack-upgrade" "$zcode_gstack/review"
+
+  if [ -f "$zcode_dir/gstack/SKILL.md" ]; then
+    _link_or_copy "$zcode_dir/gstack/SKILL.md" "$zcode_gstack/SKILL.md"
+  fi
+  # bin scripts import shared modules via ../lib — bin and lib travel together.
+  if [ -d "$gstack_dir/bin" ]; then
+    _link_or_copy "$gstack_dir/bin" "$zcode_gstack/bin"
+  fi
+  if [ -d "$gstack_dir/lib" ]; then
+    _link_or_copy "$gstack_dir/lib" "$zcode_gstack/lib"
+  fi
+  if [ -d "$gstack_dir/browse/dist" ]; then
+    _link_or_copy "$gstack_dir/browse/dist" "$zcode_gstack/browse/dist"
+  fi
+  if [ -d "$gstack_dir/browse/bin" ]; then
+    _link_or_copy "$gstack_dir/browse/bin" "$zcode_gstack/browse/bin"
+  fi
+  if [ -f "$zcode_dir/gstack-upgrade/SKILL.md" ]; then
+    _link_or_copy "$zcode_dir/gstack-upgrade/SKILL.md" "$zcode_gstack/gstack-upgrade/SKILL.md"
+  fi
+  # Review runtime assets — the zcode host config ships the lean pair.
+  for f in checklist.md TODOS-format.md; do
+    if [ -f "$gstack_dir/review/$f" ]; then
+      _link_or_copy "$gstack_dir/review/$f" "$zcode_gstack/review/$f"
+    fi
+  done
+  if [ -f "$gstack_dir/ETHOS.md" ]; then
+    _link_or_copy "$gstack_dir/ETHOS.md" "$zcode_gstack/ETHOS.md"
+  fi
+  # supabase/config.sh — required by gstack-telemetry-sync to resolve GSTACK_SUPABASE_URL
+  if [ -f "$gstack_dir/supabase/config.sh" ]; then
+    mkdir -p "$zcode_gstack/supabase"
+    _link_or_copy "$gstack_dir/supabase/config.sh" "$zcode_gstack/supabase/config.sh"
+  fi
+}
+
+# Plant runtime assets into the repo-local generated skill dir so in-repo
+# GSTACK_ROOT (preamble prefers $_ROOT/.zcode/skills/gstack) has bin/.
+# NEVER wipe this directory — it holds the generated SKILL.md files.
+create_zcode_sidecar() {
+  local repo_root="$1"
+  local zcode_gstack="$repo_root/.zcode/skills/gstack"
+  local zcode_dir="$repo_root/.zcode/skills"
+
+  # #2142: same user-ownership gate as create_agents_sidecar — but the
+  # generated tree's own root (zcode_dir/gstack carries the banner) always
+  # passes, so normal installs refresh as before.
+  if _sidecar_root_user_owned "$zcode_gstack"; then
+    echo "  left in place (existing dir not gstack-managed — no generated banner): $zcode_gstack" >&2
+    return 0
+  fi
+
+  mkdir -p "$zcode_gstack" "$zcode_gstack/browse" "$zcode_gstack/gstack-upgrade" "$zcode_gstack/review"
+
+  if [ -d "$repo_root/bin" ]; then
+    if [ "$IS_WINDOWS" -eq 1 ] || [ -L "$zcode_gstack/bin" ] || [ ! -e "$zcode_gstack/bin" ]; then
+      _link_or_copy "$repo_root/bin" "$zcode_gstack/bin"
+    fi
+  fi
+  if [ -d "$repo_root/lib" ]; then
+    if [ "$IS_WINDOWS" -eq 1 ] || [ -L "$zcode_gstack/lib" ] || [ ! -e "$zcode_gstack/lib" ]; then
+      _link_or_copy "$repo_root/lib" "$zcode_gstack/lib"
+    fi
+  fi
+  if [ -d "$repo_root/browse/dist" ]; then
+    if [ "$IS_WINDOWS" -eq 1 ] || [ -L "$zcode_gstack/browse/dist" ] || [ ! -e "$zcode_gstack/browse/dist" ]; then
+      _link_or_copy "$repo_root/browse/dist" "$zcode_gstack/browse/dist"
+    fi
+  fi
+  if [ -d "$repo_root/browse/bin" ]; then
+    if [ "$IS_WINDOWS" -eq 1 ] || [ -L "$zcode_gstack/browse/bin" ] || [ ! -e "$zcode_gstack/browse/bin" ]; then
+      _link_or_copy "$repo_root/browse/bin" "$zcode_gstack/browse/bin"
+    fi
+  fi
+  if [ -f "$zcode_dir/gstack-upgrade/SKILL.md" ]; then
+    if [ "$IS_WINDOWS" -eq 1 ] || [ -L "$zcode_gstack/gstack-upgrade/SKILL.md" ] || [ ! -e "$zcode_gstack/gstack-upgrade/SKILL.md" ]; then
+      _link_or_copy "$zcode_dir/gstack-upgrade/SKILL.md" "$zcode_gstack/gstack-upgrade/SKILL.md"
+    fi
+  fi
+  for f in checklist.md TODOS-format.md; do
+    if [ -f "$repo_root/review/$f" ]; then
+      if [ "$IS_WINDOWS" -eq 1 ] || [ -L "$zcode_gstack/review/$f" ] || [ ! -e "$zcode_gstack/review/$f" ]; then
+        _link_or_copy "$repo_root/review/$f" "$zcode_gstack/review/$f"
+      fi
+    fi
+  done
+  if [ -f "$repo_root/ETHOS.md" ]; then
+    if [ "$IS_WINDOWS" -eq 1 ] || [ -L "$zcode_gstack/ETHOS.md" ] || [ ! -e "$zcode_gstack/ETHOS.md" ]; then
+      _link_or_copy "$repo_root/ETHOS.md" "$zcode_gstack/ETHOS.md"
+    fi
+  fi
+}
+
+link_zcode_skill_dirs() {
+  local gstack_dir="$1"
+  local skills_dir="$2"
+  local zcode_dir="$gstack_dir/.zcode/skills"
+  local linked=()
+
+  if [ ! -d "$zcode_dir" ]; then
+    echo "  Generating .zcode/ skill docs..."
+    ( cd "$gstack_dir" && bun_cmd run gen:skill-docs --host zcode )
+  fi
+
+  if [ ! -d "$zcode_dir" ]; then
+    echo "  warning: .zcode/skills/ generation failed — run 'bun run gen:skill-docs --host zcode' manually" >&2
+    return 1
+  fi
+
+  for skill_dir in "$zcode_dir"/gstack*/; do
+    if [ -f "$skill_dir/SKILL.md" ]; then
+      skill_name="$(basename "$skill_dir")"
+      [ "$skill_name" = "gstack" ] && continue
+      target="$skills_dir/$skill_name"
+      # #2444: IS_WINDOWS bypass — real-dir copies never match -L, so re-runs
+      # skipped the refresh. Only replace a symlink, a missing path, or a
+      # PROVABLY gstack-managed real dir; never a user's own ZCode skill
+      # dir that merely starts with gstack (#2142).
+      if [ "$IS_WINDOWS" -eq 1 ] || [ -L "$target" ] || [ ! -e "$target" ]; then
+        if _owned_for_windows_refresh "$target"; then
+          _link_or_copy "$skill_dir" "$target"
+          linked+=("$skill_name")
+        else
+          echo "  left in place (existing dir not gstack-managed — no generated banner): $target" >&2
+        fi
+      fi
+    fi
+  done
+  if [ ${#linked[@]} -gt 0 ]; then
+    echo "  linked skills: ${linked[*]}"
+  fi
+}
+
+# ─── Helper: create a minimal $KIMI_CODE_HOME/skills/gstack runtime root ────
+# Kimi Code scans $KIMI_CODE_HOME/skills (default ~/.kimi-code/skills). Same
+# shape as the ZCode/Cursor runtime roots: root SKILL.md from the generated
+# tree + the lean runtime asset pair.
+create_kimi_runtime_root() {
+  local gstack_dir="$1"
+  local kimi_gstack="$2"
+  local kimi_dir="$gstack_dir/.kimi-code/skills"
+  local generated_root="$kimi_dir/gstack"
+
+  if [ -L "$kimi_gstack" ]; then
+    rm -f "$kimi_gstack"
+  elif _sidecar_root_user_owned "$kimi_gstack"; then
+    echo "  left in place (existing dir not gstack-managed — no generated banner): $kimi_gstack" >&2
+    return 0
+  elif [ -d "$kimi_gstack" ] && [ "$kimi_gstack" != "$gstack_dir" ] && [ "$kimi_gstack" != "$generated_root" ]; then
+    rm -rf "$kimi_gstack"
+  fi
+
+  mkdir -p "$kimi_gstack" "$kimi_gstack/browse" "$kimi_gstack/gstack-upgrade" "$kimi_gstack/review"
+
+  if [ -f "$kimi_dir/gstack/SKILL.md" ]; then
+    _link_or_copy "$kimi_dir/gstack/SKILL.md" "$kimi_gstack/SKILL.md"
+  fi
+  # bin scripts import shared modules via ../lib — bin and lib travel together.
+  if [ -d "$gstack_dir/bin" ]; then
+    _link_or_copy "$gstack_dir/bin" "$kimi_gstack/bin"
+  fi
+  if [ -d "$gstack_dir/lib" ]; then
+    _link_or_copy "$gstack_dir/lib" "$kimi_gstack/lib"
+  fi
+  if [ -d "$gstack_dir/browse/dist" ]; then
+    _link_or_copy "$gstack_dir/browse/dist" "$kimi_gstack/browse/dist"
+  fi
+  if [ -d "$gstack_dir/browse/bin" ]; then
+    _link_or_copy "$gstack_dir/browse/bin" "$kimi_gstack/browse/bin"
+  fi
+  if [ -f "$kimi_dir/gstack-upgrade/SKILL.md" ]; then
+    _link_or_copy "$kimi_dir/gstack-upgrade/SKILL.md" "$kimi_gstack/gstack-upgrade/SKILL.md"
+  fi
+  # Review runtime assets — the kimi host config ships the lean pair.
+  for f in checklist.md TODOS-format.md; do
+    if [ -f "$gstack_dir/review/$f" ]; then
+      _link_or_copy "$gstack_dir/review/$f" "$kimi_gstack/review/$f"
+    fi
+  done
+  if [ -f "$gstack_dir/ETHOS.md" ]; then
+    _link_or_copy "$gstack_dir/ETHOS.md" "$kimi_gstack/ETHOS.md"
+  fi
+  # supabase/config.sh — required by gstack-telemetry-sync to resolve GSTACK_SUPABASE_URL
+  if [ -f "$gstack_dir/supabase/config.sh" ]; then
+    mkdir -p "$kimi_gstack/supabase"
+    _link_or_copy "$gstack_dir/supabase/config.sh" "$kimi_gstack/supabase/config.sh"
+  fi
+}
+
+# Plant runtime assets into the repo-local generated skill dir so in-repo
+# GSTACK_ROOT (preamble prefers $_ROOT/.kimi-code/skills/gstack) has bin/.
+# NEVER wipe this directory — it holds the generated SKILL.md files.
+create_kimi_sidecar() {
+  local repo_root="$1"
+  local kimi_gstack="$repo_root/.kimi-code/skills/gstack"
+  local kimi_dir="$repo_root/.kimi-code/skills"
+
+  if _sidecar_root_user_owned "$kimi_gstack"; then
+    echo "  left in place (existing dir not gstack-managed — no generated banner): $kimi_gstack" >&2
+    return 0
+  fi
+
+  mkdir -p "$kimi_gstack" "$kimi_gstack/browse" "$kimi_gstack/gstack-upgrade" "$kimi_gstack/review"
+
+  if [ -d "$repo_root/bin" ]; then
+    if [ "$IS_WINDOWS" -eq 1 ] || [ -L "$kimi_gstack/bin" ] || [ ! -e "$kimi_gstack/bin" ]; then
+      _link_or_copy "$repo_root/bin" "$kimi_gstack/bin"
+    fi
+  fi
+  if [ -d "$repo_root/lib" ]; then
+    if [ "$IS_WINDOWS" -eq 1 ] || [ -L "$kimi_gstack/lib" ] || [ ! -e "$kimi_gstack/lib" ]; then
+      _link_or_copy "$repo_root/lib" "$kimi_gstack/lib"
+    fi
+  fi
+  if [ -d "$repo_root/browse/dist" ]; then
+    if [ "$IS_WINDOWS" -eq 1 ] || [ -L "$kimi_gstack/browse/dist" ] || [ ! -e "$kimi_gstack/browse/dist" ]; then
+      _link_or_copy "$repo_root/browse/dist" "$kimi_gstack/browse/dist"
+    fi
+  fi
+  if [ -d "$repo_root/browse/bin" ]; then
+    if [ "$IS_WINDOWS" -eq 1 ] || [ -L "$kimi_gstack/browse/bin" ] || [ ! -e "$kimi_gstack/browse/bin" ]; then
+      _link_or_copy "$repo_root/browse/bin" "$kimi_gstack/browse/bin"
+    fi
+  fi
+  if [ -f "$kimi_dir/gstack-upgrade/SKILL.md" ]; then
+    if [ "$IS_WINDOWS" -eq 1 ] || [ -L "$kimi_gstack/gstack-upgrade/SKILL.md" ] || [ ! -e "$kimi_gstack/gstack-upgrade/SKILL.md" ]; then
+      _link_or_copy "$kimi_dir/gstack-upgrade/SKILL.md" "$kimi_gstack/gstack-upgrade/SKILL.md"
+    fi
+  fi
+  for f in checklist.md TODOS-format.md; do
+    if [ -f "$repo_root/review/$f" ]; then
+      if [ "$IS_WINDOWS" -eq 1 ] || [ -L "$kimi_gstack/review/$f" ] || [ ! -e "$kimi_gstack/review/$f" ]; then
+        _link_or_copy "$repo_root/review/$f" "$kimi_gstack/review/$f"
+      fi
+    fi
+  done
+  if [ -f "$repo_root/ETHOS.md" ]; then
+    if [ "$IS_WINDOWS" -eq 1 ] || [ -L "$kimi_gstack/ETHOS.md" ] || [ ! -e "$kimi_gstack/ETHOS.md" ]; then
+      _link_or_copy "$repo_root/ETHOS.md" "$kimi_gstack/ETHOS.md"
+    fi
+  fi
+}
+
+link_kimi_skill_dirs() {
+  local gstack_dir="$1"
+  local skills_dir="$2"
+  local kimi_dir="$gstack_dir/.kimi-code/skills"
+  local linked=()
+
+  if [ ! -d "$kimi_dir" ]; then
+    echo "  Generating .kimi-code/ skill docs..."
+    ( cd "$gstack_dir" && bun_cmd run gen:skill-docs --host kimi )
+  fi
+
+  if [ ! -d "$kimi_dir" ]; then
+    echo "  warning: .kimi-code/skills/ generation failed — run 'bun run gen:skill-docs --host kimi' manually" >&2
+    return 1
+  fi
+
+  for skill_dir in "$kimi_dir"/gstack*/; do
+    if [ -f "$skill_dir/SKILL.md" ]; then
+      skill_name="$(basename "$skill_dir")"
+      [ "$skill_name" = "gstack" ] && continue
+      target="$skills_dir/$skill_name"
+      # #2444: IS_WINDOWS bypass — real-dir copies never match -L, so re-runs
+      # skipped the refresh. Only replace a symlink, a missing path, or a
+      # PROVABLY gstack-managed real dir; never a user's own Kimi skill
+      # dir that merely starts with gstack (#2142).
+      if [ "$IS_WINDOWS" -eq 1 ] || [ -L "$target" ] || [ ! -e "$target" ]; then
+        if _owned_for_windows_refresh "$target"; then
+          _link_or_copy "$skill_dir" "$target"
+          linked+=("$skill_name")
+        else
+          echo "  left in place (existing dir not gstack-managed — no generated banner): $target" >&2
+        fi
+      fi
+    fi
+  done
+  if [ ${#linked[@]} -gt 0 ]; then
+    echo "  linked skills: ${linked[*]}"
+  fi
+}
+
 # 4. Install for Claude (default)
 SKILLS_BASENAME="$(basename "$INSTALL_SKILLS_DIR")"
 SKILLS_PARENT_BASENAME="$(basename "$(dirname "$INSTALL_SKILLS_DIR")")"
@@ -1862,6 +2204,30 @@ if [ "$INSTALL_CURSOR" -eq 1 ]; then
   echo "gstack ready (cursor)."
   echo "  browse: $BROWSE_BIN"
   echo "  cursor skills: $CURSOR_SKILLS"
+fi
+
+# 6e. Install for ZCode
+if [ "$INSTALL_ZCODE" -eq 1 ]; then
+  mkdir -p "$ZCODE_SKILLS"
+  create_zcode_runtime_root "$SOURCE_GSTACK_DIR" "$ZCODE_GSTACK"
+  # Link before sidecar — same ordering constraint as Cursor.
+  link_zcode_skill_dirs "$SOURCE_GSTACK_DIR" "$ZCODE_SKILLS"
+  create_zcode_sidecar "$SOURCE_GSTACK_DIR"
+  echo "gstack ready (zcode)."
+  echo "  browse: $BROWSE_BIN"
+  echo "  zcode skills: $ZCODE_SKILLS"
+fi
+
+# 6f. Install for Kimi Code
+if [ "$INSTALL_KIMI" -eq 1 ]; then
+  mkdir -p "$KIMI_SKILLS"
+  create_kimi_runtime_root "$SOURCE_GSTACK_DIR" "$KIMI_GSTACK"
+  # Link before sidecar — same ordering constraint as Cursor.
+  link_kimi_skill_dirs "$SOURCE_GSTACK_DIR" "$KIMI_SKILLS"
+  create_kimi_sidecar "$SOURCE_GSTACK_DIR"
+  echo "gstack ready (kimi)."
+  echo "  browse: $BROWSE_BIN"
+  echo "  kimi skills: $KIMI_SKILLS"
 fi
 
 # 7. Create .agents/ sidecar symlinks for the real Codex skill target.

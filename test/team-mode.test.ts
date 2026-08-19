@@ -13,13 +13,13 @@ function mkTmpDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'gstack-team-test-'));
 }
 
-function run(cmd: string, opts: { cwd?: string; env?: Record<string, string> } = {}): { stdout: string; stderr: string; exitCode: number } {
+function run(cmd: string, opts: { cwd?: string; env?: Record<string, string>; timeoutMs?: number } = {}): { stdout: string; stderr: string; exitCode: number } {
   try {
     const stdout = execSync(cmd, {
       cwd: opts.cwd,
       env: { ...process.env, ...opts.env },
       encoding: 'utf-8',
-      timeout: 10000,
+      timeout: opts.timeoutMs ?? 10000,
     });
     return { stdout, stderr: '', exitCode: 0 };
   } catch (e: any) {
@@ -326,14 +326,52 @@ describe('setup --team / --no-team / -q', () => {
   // `./setup` does a full install + build + skill regeneration. On a cold cache
   // it routinely takes 60-90s. Give both tests a 3-minute budget so CI doesn't
   // report pre-existing timeouts as failures.
+  //
+  // The full-setup runs must stay hermetic. Un-sandboxed they mutated the
+  // developer's real environment (registered the timeline Stop hook in
+  // ~/.claude/settings.json, wrote ~/.gstack state, read ~/.codex/config.toml),
+  // and the shared run()'s 10s execSync kill left partial real state behind
+  // (gbrain-detection.json.<pid>.tmp). HOME/CODEX_HOME/GSTACK_HOME land every
+  // write in a temp dir; PLAYWRIGHT_BROWSERS_PATH keeps the browser probe on
+  // the real cache so the sandbox never re-downloads Chromium; the SKIP flags
+  // opt out of brew/apt system mutations.
+  function setupSandboxEnv(): { env: Record<string, string>; cleanup: () => void } {
+    const fakeHome = fs.mkdtempSync(path.join(os.tmpdir(), 'gstack-team-mode-setup-'));
+    const realHome = process.env.HOME ?? os.homedir();
+    const browsersPath = process.env.PLAYWRIGHT_BROWSERS_PATH
+      ?? (process.platform === 'darwin'
+        ? path.join(realHome, 'Library', 'Caches', 'ms-playwright')
+        : path.join(realHome, '.cache', 'ms-playwright'));
+    return {
+      env: {
+        HOME: fakeHome,
+        GSTACK_HOME: path.join(fakeHome, '.gstack'),
+        CODEX_HOME: path.join(fakeHome, '.codex'),
+        PLAYWRIGHT_BROWSERS_PATH: browsersPath,
+        GSTACK_SKIP_COREUTILS: '1',
+        GSTACK_SKIP_FONTS: '1',
+      },
+      cleanup: () => fs.rmSync(fakeHome, { recursive: true, force: true }),
+    };
+  }
+
   test(
     'setup -q produces no stdout',
     () => {
-      const result = run(`${path.join(ROOT, 'setup')} -q`, { cwd: ROOT });
-      // -q should suppress informational output (may still have some output from build)
-      // The key test is that the "Skill naming:" prompt and "gstack ready" messages are suppressed
-      expect(result.stdout).not.toContain('Skill naming:');
-      expect(result.stdout).not.toContain('gstack ready');
+      const sandbox = setupSandboxEnv();
+      try {
+        const result = run(`${path.join(ROOT, 'setup')} -q`, {
+          cwd: ROOT,
+          env: sandbox.env,
+          timeoutMs: 170_000,
+        });
+        // -q should suppress informational output (may still have some output from build)
+        // The key test is that the "Skill naming:" prompt and "gstack ready" messages are suppressed
+        expect(result.stdout).not.toContain('Skill naming:');
+        expect(result.stdout).not.toContain('gstack ready');
+      } finally {
+        sandbox.cleanup();
+      }
     },
     180_000,
   );
@@ -341,9 +379,18 @@ describe('setup --team / --no-team / -q', () => {
   test(
     'setup --local prints deprecation warning',
     () => {
-      // stderr capture: run via bash redirect so we can capture stderr
-      const result = run(`bash -c '${path.join(ROOT, 'setup')} --local -q 2>&1'`, { cwd: ROOT });
-      expect(result.stdout).toContain('deprecated');
+      const sandbox = setupSandboxEnv();
+      try {
+        // stderr capture: run via bash redirect so we can capture stderr
+        const result = run(`bash -c '${path.join(ROOT, 'setup')} --local -q 2>&1'`, {
+          cwd: ROOT,
+          env: sandbox.env,
+          timeoutMs: 170_000,
+        });
+        expect(result.stdout).toContain('deprecated');
+      } finally {
+        sandbox.cleanup();
+      }
     },
     180_000,
   );

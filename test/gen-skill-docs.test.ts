@@ -2511,9 +2511,9 @@ describe('setup script validation', () => {
     expect(claudeSection).toContain('link_claude_root_skill_alias "$SOURCE_GSTACK_DIR" "$INSTALL_SKILLS_DIR"');
   });
 
-  test('setup supports --host auto|claude|codex|kiro|opencode|cursor|slate', () => {
+  test('setup supports --host auto|claude|codex|kiro|opencode|cursor|slate|zcode|kimi', () => {
     expect(setupContent).toContain('--host');
-    expect(setupContent).toContain('claude|codex|kiro|factory|opencode|cursor|slate|auto');
+    expect(setupContent).toContain('claude|codex|kiro|factory|opencode|cursor|slate|zcode|kimi|auto');
   });
 
   test('auto mode detects claude, codex, kiro, and opencode binaries', () => {
@@ -2632,6 +2632,88 @@ describe('setup script validation', () => {
     expect(linkCall).toBeGreaterThan(-1);
     expect(sidecarCall).toBeGreaterThan(-1);
     expect(linkCall).toBeLessThan(sidecarCall);
+  });
+
+  // --host zcode / --host kimi follow the Cursor full-install shape
+  // (~/.zcode/skills + ~/.kimi-code/skills, lean runtime asset pair).
+  test('auto mode detects ZCode via binary or ~/.zcode directory', () => {
+    expect(setupContent).toContain('command -v zcode');
+    expect(setupContent).toContain('[ -d "$HOME/.zcode" ] && INSTALL_ZCODE=1');
+  });
+
+  test('auto mode detects Kimi Code via kimi binary or ~/.kimi-code directory', () => {
+    expect(setupContent).toContain('command -v kimi');
+    expect(setupContent).toContain('[ -d "${KIMI_CODE_HOME:-$HOME/.kimi-code}" ] && INSTALL_KIMI=1');
+  });
+
+  test('setup supports --host zcode with install section and ZCode skill path vars', () => {
+    expect(setupContent).toContain('INSTALL_ZCODE=');
+    expect(setupContent).toContain('ZCODE_SKILLS="$HOME/.zcode/skills"');
+    expect(setupContent).toContain('ZCODE_GSTACK="$ZCODE_SKILLS/gstack"');
+    expect(setupContent).toContain('create_zcode_runtime_root');
+    expect(setupContent).toContain('create_zcode_sidecar');
+    expect(setupContent).toContain('link_zcode_skill_dirs');
+    expect(setupContent).toContain('gstack ready (zcode).');
+  });
+
+  test('setup supports --host kimi with install section and Kimi skill path vars', () => {
+    expect(setupContent).toContain('INSTALL_KIMI=');
+    expect(setupContent).toContain('KIMI_SKILLS="${KIMI_CODE_HOME:-$HOME/.kimi-code}/skills"');
+    expect(setupContent).toContain('KIMI_GSTACK="$KIMI_SKILLS/gstack"');
+    expect(setupContent).toContain('create_kimi_runtime_root');
+    expect(setupContent).toContain('create_kimi_sidecar');
+    expect(setupContent).toContain('link_kimi_skill_dirs');
+    expect(setupContent).toContain('gstack ready (kimi).');
+  });
+
+  test('create_zcode_runtime_root and create_kimi_runtime_root expose only lean runtime assets', () => {
+    for (const host of ['zcode', 'kimi']) {
+      const fnStart = setupContent.indexOf(`create_${host}_runtime_root()`);
+      const fnEnd = setupContent.indexOf(`create_${host}_sidecar()`, fnStart);
+      const fnBody = setupContent.slice(fnStart, fnEnd);
+      expect(fnBody).toContain('gstack/SKILL.md');
+      expect(fnBody).toContain('browse/dist');
+      expect(fnBody).toContain('browse/bin');
+      expect(fnBody).toContain('gstack-upgrade/SKILL.md');
+      expect(fnBody).toContain('checklist.md');
+      expect(fnBody).toContain('TODOS-format.md');
+      // bin scripts import ../lib — the two must travel together.
+      expect(fnBody).toContain(`$${host}_gstack/lib`);
+      expect(fnBody).not.toContain('design-checklist.md');
+      expect(fnBody).not.toContain('greptile-triage.md');
+      expect(fnBody).not.toContain('review/specialists');
+      expect(fnBody).not.toContain('qa/templates');
+    }
+  });
+
+  test('link_zcode/kimi_skill_dirs skip the gstack runtime root and never rm -rf unowned dirs', () => {
+    for (const host of ['zcode', 'kimi']) {
+      const fnStart = setupContent.indexOf(`link_${host}_skill_dirs()`);
+      const fnEnd = setupContent.indexOf('}', setupContent.indexOf('linked[@]', fnStart));
+      const fnBody = setupContent.slice(fnStart, fnEnd);
+      expect(fnBody).toContain('[ "$skill_name" = "gstack" ] && continue');
+      // #2444-aware guard: Windows bypass, else only replace symlink-or-missing.
+      expect(fnBody).toContain('[ "$IS_WINDOWS" -eq 1 ] || [ -L "$target" ] || [ ! -e "$target" ]');
+      expect(fnBody).not.toContain('rm -rf "$target"');
+    }
+  });
+
+  test('ZCode and Kimi installs link generated skills before planting the sidecar', () => {
+    const sections: Array<[string, string, string]> = [
+      ['# 6e. Install for ZCode', '# 6f. Install for Kimi Code', 'zcode'],
+      ['# 6f. Install for Kimi Code', '# 7. Create .agents/ sidecar', 'kimi'],
+    ];
+    for (const [sectionStart, sectionEnd, host] of sections) {
+      const install = setupContent.slice(
+        setupContent.indexOf(sectionStart),
+        setupContent.indexOf(sectionEnd),
+      );
+      const linkCall = install.indexOf(`link_${host}_skill_dirs "$SOURCE_GSTACK_DIR"`);
+      const sidecarCall = install.indexOf(`create_${host}_sidecar "$SOURCE_GSTACK_DIR"`);
+      expect(linkCall).toBeGreaterThan(-1);
+      expect(sidecarCall).toBeGreaterThan(-1);
+      expect(linkCall).toBeLessThan(sidecarCall);
+    }
   });
 
   test('setup installs OpenCode skills into a nested gstack runtime root', () => {

@@ -22,6 +22,8 @@ bin/gstack-global-discover*
 .openclaw/
 .hermes/
 .gbrain/
+.zcode/
+.kimi-code/
 .gbrain-source
 .context/
 extension/.auth.json
@@ -38,6 +40,7 @@ extension/lib/xterm-addon-fit.js
 .env.*
 !.env.example
 supabase/.temp/
+.DS_Store
 
 # Throughput analysis — local-only, regenerate via scripts/garry-output-comparison.ts
 docs/throughput-*.json

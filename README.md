@@ -101,7 +101,7 @@ These are conversational skills. Your OpenClaw agent runs them directly via chat
 
 ### Other AI Agents
 
-gstack works on 10 AI coding agents, not just Claude. Setup auto-detects which
+gstack works on 12 AI coding agents, not just Claude. Setup auto-detects which
 agents you have installed:
 
 ```bash
@@ -118,6 +118,8 @@ Or target a specific agent with `./setup --host <name>`:
 | Cursor | `--host cursor` | Full install → `~/.cursor/skills/gstack-*/` |
 | Factory Droid | `--host factory` | Full install → `~/.factory/skills/gstack-*/` |
 | Kiro | `--host kiro` | Full install → `~/.kiro/skills/gstack-*/` |
+| ZCode | `--host zcode` | Full install → `~/.zcode/skills/gstack-*/` |
+| Kimi Code CLI | `--host kimi` | Full install → `${KIMI_CODE_HOME:-~/.kimi-code}/skills/gstack-*/` |
 | Slate | `--host slate` | Pointer to the Claude install (Slate reads `.claude/skills` as a fallback) |
 | OpenClaw | `--host openclaw` | ACP spawn pointers + methodology artifacts via `gen:skill-docs --host openclaw` + the instruction-only digest below (full guide: [docs/OPENCLAW.md](docs/OPENCLAW.md)) |
 | Hermes | `--host hermes` | Methodology artifacts via `gen:skill-docs --host hermes` + the instruction-only digest below |
@@ -433,6 +435,8 @@ rm -rf ~/.kiro/skills/gstack* 2>/dev/null
 rm -rf ~/.openclaw/skills/gstack* 2>/dev/null
 rm -rf ~/.cursor/skills/gstack* 2>/dev/null
 rm -rf ~/.config/opencode/skills/gstack* 2>/dev/null
+rm -rf ~/.zcode/skills/gstack* 2>/dev/null
+rm -rf "${KIMI_CODE_HOME:-$HOME/.kimi-code}/skills/gstack"* 2>/dev/null
 
 # 6. Remove temp files
 rm -f /tmp/gstack-* 2>/dev/null

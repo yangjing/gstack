@@ -2,8 +2,8 @@
 
 gstack uses a declarative host config system. Each supported AI coding agent
 (Claude, Codex, Factory, Kiro, OpenCode, Slate, Cursor, OpenClaw, Hermes,
-GBrain) is defined as a typed TypeScript config object built by the
-`defineHost()` factory. Adding a new host means creating one file and
+GBrain, ZCode, Kimi Code) is defined as a typed TypeScript config object built
+by the `defineHost()` factory. Adding a new host means creating one file and
 re-exporting it. Zero code changes to the generator, setup, or tooling.
 
 ## How it works
@@ -21,6 +21,8 @@ hosts/
 ├── openclaw.ts      # OpenClaw
 ├── hermes.ts        # Hermes (Nous Research)
 ├── gbrain.ts        # GBrain
+├── zcode.ts         # ZCode (Z.ai)
+├── kimi.ts          # Kimi Code CLI (Moonshot AI)
 └── index.ts         # Registry: imports all, derives Host type
 ```
 

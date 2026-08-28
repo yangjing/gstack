@@ -5,13 +5,17 @@
 ### P1: ZeroEntropy sunset — gbrain's default embedding provider dies Sept 4, 2026 (#2365)
 
 **What:** ZeroEntropy (acquired by Notion) shuts down September 4, 2026. gbrain's
-default embedding provider needs a migration path before then; gstack's
-setup-gbrain flow should stop recommending it and detect/warn existing installs.
+zeroentropyai recipe needs a migration path before then (the recipe + gateway
+shim are gbrain-internal — nothing in gstack ever recommended the provider).
 
-**Why:** Hard external deadline. After Sept 4, fresh setup-gbrain runs against the
-default provider fail, and existing brains stop embedding new pages silently.
+**Why:** Hard external deadline. After Sept 4, brains on the recipe stop
+embedding new pages silently.
 
-**Effort:** M (human ~2d, CC ~1h — mostly gbrain-side; gstack side is detect+warn).
+**Done (gstack side, v1.69.0.0):** wireup warns when ~/.gbrain/config.json names
+the recipe (fail-open grep), setup-gbrain provider comments say never to select
+it, USING_GBRAIN_WITH_GSTACK.md gained a troubleshooting entry (#2365).
+
+**Effort:** M (remaining work is gbrain-side provider support).
 **Priority:** P1 (calendar-driven). **Depends on:** gbrain upstream provider support.
 
 ### P2: v1.67 fix-wave deferrals — next-wave queue
@@ -45,45 +49,111 @@ wave"). Each was explicitly deferred with rationale, not dropped:
   #2576 (fast-ship rework — re-evaluate against v1.66's CI speedup),
   #2580 (land-and-deploy CI tiers — human-gate UX needs maintainer call).
 
+### P2: v1.69 fix-wave residuals (filed at wave time, each deferred with rationale)
+
+- **`cleanup_prefixed_claude_symlinks` symmetric conversion** — PR #2634 fixed
+  `cleanup_old_claude_symlinks` (destination scan, dangling-symlink aware,
+  path-segment provenance); the prefixed-mode sibling still iterates the
+  payload dir (same structural hole: can't reap orphans once the payload is
+  gone) and still uses a bare `*gstack*` substring match the sibling's own
+  tests forbid. Kept out of the contributor's absorbed commit for scope
+  discipline. Effort S→S with CC. **Priority:** P2.
+- **#2163 legacy-slug checkpoint heal** — the gstack-slug refactor unified
+  save/restore slugs, but checkpoints written under a pre-fix degraded slug
+  are still invisible; `bin/gstack-slug`'s own MIGRATION NOTE defers data
+  moves. Cheap heal: restore-side probe of the alternate slug dir before
+  printing NO_CHECKPOINTS. Effort S. **Priority:** P3.
+- **#2657 developer-profile `--reconcile`** — office-hours tenure undercounts
+  ~3x (Phase-4.5-only logging; no timeline.jsonl reconciliation). The
+  arithmetic reproduces; the reporter offered the PR — invited on the issue.
+  Track and review when it lands. Effort S (review). **Priority:** P3.
+- **Table-driven setup host dispatch from `hosts/index.ts`** — root-cause fix
+  for the accept-list/dispatch drift class behind #2361; v1.69.0.0 ships the
+  interim ratchet (accept-list ⊆ dispatch-arms cross-check test + a loud
+  zero-dispatch guard). The refactor needs its own PR with bake time (setup is
+  the riskiest file in the repo). Effort M. **Priority:** P3.
+
 ### P2: v1.67 adversarial-review residuals (verified, deferred with rationale)
 
-Filed at v1.67 ship time from the Codex + Claude adversarial passes. Each was
-verified real but needs design input or device access the wave lacked:
+Filed at v1.67 ship time from the Codex + Claude adversarial passes. Six of
+the seven landed in the v1.68 fix wave (brain-sync spool-dir queue, pair-agent
+consent gate, bin-context walk-up parity, per-project MCP scoping +
+precedence flip, next-version ls-remote fallback + width pin, stop-hook
+global-path registration + re-point). Remaining:
 
-- **brain-sync enqueue lock** — the drain's surgical rewrite closes the reader
-  side, but a lockless producer appending between the live re-read and the
-  tmp+mv can still orphan one record. Needs a shared enqueue/drain lock
-  (mkdir-style, like the drain's). Effort S.
 - **iOS tap routing across windows** — Bridges template's frontmostWindow can
   swallow taps when a keyboard/menu/transparent overlay window is topmost but
   doesn't handle the coordinate. Needs hit-test-aware routing + real-device
   verification. Effort M. (Related: the multi-window rewrite has no static
   pins — see the test-gap backlog below.)
-- **pair-agent implicit --force-restart** — pair-agent auto-kills a healthy
-  headless daemon (tabs/cookies) with no consent, contradicting the #2219
-  iron rule it now sits beside. Needs a consent prompt or explicit-flag
-  requirement; UX call. Effort S.
-- **bin-context slugFromEnvironment walk-up parity (win32)** — the native
-  fallback slugs the INNERMOST repo while bash gstack-slug walks to the
-  outermost canonical remote; nested/vendored repos split stores. Effort S.
-- **hasRemoteOnlyGbrainMcp is machine-global** — one project's remote gbrain
-  registration reclassifies broken local engines as thin-client everywhere;
-  also confirm Claude Code's user-vs-project MCP precedence against
-  brain-cache's user-first assumption. Effort S.
-- **next-version git-fallback breadth** — the degraded path counts every
-  remote-tracking ref on every remote (stale experiment branches inflate the
-  allocation) and a failed 3-digit base read flips width to 4. Warned today;
-  tighten to origin + width-pin. Effort S.
-- **Stop-hook registration pins the setup-time absolute path** — registering
-  from a dev worktree bakes that path into settings.json; deleting the
-  worktree leaves a dead hook erroring on every session stop until removed.
-  Register the global-install path or re-point on upgrade. Effort S.
+- **setup:1601 CLAUDE_CONFIG_DIR alignment** — the skills installer hardcodes
+  `$HOME/.claude/skills` while settings.json and hook registration honor
+  `CLAUDE_CONFIG_DIR`; users with the override get a split-brain install.
+  Mitigated in v1.68.1 (canonical-root fallback to the home path so hooks
+  still register), but the installer itself should honor the override.
+  **Priority:** P3. Effort S.
+- **Centralize plan_tune_hooks bool parsing + gstack-config key validation** —
+  the `n|no|false|skip|off|0` negative-value set is triplicated
+  (gstack-settings-hook prune-stale, setup heal note, setup PT_DECISION) and
+  gstack-config carries three verbatim copies of the key-validation block
+  (get/has/set). Extract a `gstack-config` bool helper + `validate_key()`;
+  update the locale pin test. Filed via /ship review army (maintainability).
+  **Priority:** P3. Effort S.
 - **Accepted threat-model notes (documented, no action planned):**
   redact-prepush treats content pushed to ANY private remote as already-left
   (accident-only threat model); a parcel-shaped twin within 400 chars can
   suppress phone redaction (WARN-tier pattern, attacker-influence accepted);
   codex-probe's 400-signature grep can misread a transient proxy 400 as
   MODEL_UNUSABLE (bounded by the 15-min negative-cache TTL).
+
+### P2: skillify structural isolation (filed from the v1.68 wave reviews)
+
+**What:** /skillify turns scraped page content into durable executable skill
+code on disk. The v1.68 wave added the untrusted-content warning to its prose
+(#2441), but a warning is not a boundary — generated actions derived from
+hostile page content need structural isolation, sanitization of synthesized
+selectors/names, or an explicit approval step scoped to the generated code.
+
+**Why:** A poisoned page could steer the generated script.ts toward actions
+the user never reviewed; the current gate is the Step 9 approval, which shows
+the code but doesn't highlight page-derived strings.
+
+**Effort:** M → S with CC. **Priority:** P2. **Depends on:** none.
+
+### P2: slug store migration — merge pre-fix `projects/garrytan/` data (v1.68 follow-up)
+
+**What:** The v1.68 slug-parity fix (gstack-slug now matches remote-slug's
+owner-repo form) means machines that hit the degraded-slug bug (stray strong
+marker above a repo, e.g. an empty ~/.git) have historical decisions /
+timeline / ceo-plans / learnings filed under the marker-basename store
+(observed: `~/.gstack/projects/garrytan/`) instead of per-repo stores. Define
+and ship the merge/alias: attribute each misfiled record to its repo where
+derivable (timeline entries carry branch; decisions carry scope), else leave
+in place with a pointer file.
+
+**Why:** Post-fix sessions read the CORRECT store, so pre-fix history is
+invisible to Context Recovery until migrated.
+
+**Effort:** M → S with CC. **Priority:** P2. **Depends on:** the v1.68 wave
+(shipped the fix + parity tests).
+
+### P3: gstack-slug degraded-heal probe cost on cache hits (v1.68 review-army finding)
+
+**What:** The v1.68 cache self-heal probes `_resolve_remote` (1-3 git forks) on
+EVERY cache hit whenever the cached slug equals the marker-root basename — the
+permanent steady state for remoteless and legit-sticky projects, on the
+per-preamble hot path. Add a single-shot sentinel per cache entry so the heal
+probe runs once, not forever.
+
+**Why:** "Cache hits stay git-spawn-free" only holds for owner-repo slugs
+today. Cost is bounded (1-3 forks) but paid at every skill start on affected
+projects. Also next-touch notes from the same review: extract a makeResult
+helper for BulkResult's 11 hand-copied literals in bin/gstack-memory-ingest.ts;
+dedup the brain-worktree default-path literal between bin/gstack-brain-sync and
+bin/gstack-gbrain-source-wireup.
+
+**Effort:** S. **Priority:** P3. **Depends on:** cache-format compatibility
+(sentinel must not break older readers).
 
 ### P2: v1.67 coverage-audit test-gap backlog (5-agent sweep, ranked)
 
@@ -558,35 +628,122 @@ output, then retire or simplify the guard. Effort: human ~half day / CC ~20 min.
 
 ## Token-reduction follow-ups (Phase B, filed via /plan-eng-review on the plan-ceo-review carve)
 
-### P3: Carve the always-loaded `{{PREAMBLE}}` reference blocks into an on-demand doc
+### P2: v1.70 ship-review deferrals (specialist + adversarial findings, each verified)
 
-**What:** The per-skill section carves (`/ship` v1.54, `/plan-ceo-review` v1.56) yield
-real but bounded wins (-42% to -59% on the carved skill) because the shared
-`{{PREAMBLE}}` (~40-50KB on every tier-3/4 skill) is the dominant always-loaded cost
-and stays inline. Move the rarely-needed preamble REFERENCE blocks (the AskUserQuestion
-split-rules and the CJK / lone-surrogate escaping reference) into an on-demand
-section-style doc the agent reads only when it hits those edge cases, leaving the hot
-path (voice, completeness principle, recommendation format) inline.
+**What:** Follow-ups deferred from the v1.70.0.0 pre-landing review, none ship-blocking:
 
-**Why:** Highest-ROI remaining token target. One preamble carve helps EVERY tier-≥2
-skill at once, not one skill per PR. The eng-review on the plan-ceo carve flagged that
-per-skill carves stay modest precisely because the preamble dominates the always-loaded
-surface.
+- **Batch the 11 `gstack-config get` forks in `bin/gstack-skill-start`** into one config
+  read (~60-250ms of preamble latency per skill invocation, worse on macOS). The
+  consolidation into one script is what makes batching trivial now.
+- **Cache the `gbrain --version` probe** (Node CLI cold start, 100-300ms per invocation
+  for gbrain users) keyed on binary path + mtime.
+- **`bin/gstack-retro-metrics`: single-pass diffs** — combine the `--numstat` and `-p`
+  passes (`git log --numstat -p`), unify the three test-file definitions (`is_test`,
+  the awk regex, the repo-wide grep), and cover the `origin/<base>` ref preference +
+  300-commit/40-coauthor truncation paths with tests.
+- **Rename `generate-upgrade-check.ts`** — it now emits only PROACTIVE/SKILL_PREFIX
+  rules; the name misleads anyone hunting for upgrade-prompt rendering.
+- **evals.yml gate matrix drift:** 9 pre-existing gate-tier files in `E2E_TIERS` are
+  absent from the static suite matrix, so they never run in PR CI. Add them (or prune
+  their tier), plus a free tripwire test diffing gate-tier `E2E_TIERS` against the
+  workflow matrix so the class can't recur.
+- **`_sanitize` case/separator variants:** the strip is exact-literal; make it
+  case-insensitive and separator-tolerant, with pinned variant cases.
+- **Telemetry unset-vs-off semantics:** `gstack-skill-start` treats an UNSET telemetry
+  key as enabled for the LOCAL analytics write (pre-consent recording, local-only);
+  `gstack-telemetry-log` maps unset to off. Decide one semantic and document it.
+- **Coverage gaps from the ship audit:** `--brain-health` block (zero tests), the
+  learnings `>5`-entries sanitize passthrough (poison test), session prune +
+  `.pending-*` finalize loop, and a shared `ONBOARDING_MARKERS` constant for the three
+  seed sites (hermetic-env, e2e-helpers, the script's gates).
 
-**Pros:** A single change reduces always-loaded cost across the whole skill pack.
-**Cons:** The preamble is load-bearing and shared; a botched carve regresses every skill.
-Needs the same union-parity + per-push freshness guards the section carves use, applied
-corpus-wide.
+**Why:** Each was found by the v1.70 review army with file:line evidence; all are quality
+or latency wins on the new runtime scripts, none change behavior contracts.
 
-**Context:** Builds on the v2 section pipeline (`scripts/resolvers/sections.ts`,
-`{{SECTION:id}}` / `{{SECTION_INDEX}}`). The preamble source is
-`scripts/resolvers/preamble.ts`. Measure which sub-blocks are cold (escaping reference,
-split-rules) vs hot (voice, recommendation format) before cutting. Validate on one skill,
-then roll corpus-wide.
+**Effort estimate:** M (human team) → S (CC+gstack)
+**Priority:** P2
+**Depends on / blocked by:** v1.70.0.0 landing.
 
-**Effort estimate:** L (human team) → M (CC+gstack)
+### P3: Output-template carve wave — REVIEW_DASHBOARD + PLAN_FILE_REVIEW_REPORT
+
+**What:** Carve the two output-format resolver blocks — the review dashboard table
+shape and the plan-file report skeleton — out of the six skills that inline them
+(`{{REVIEW_DASHBOARD}}` 5,940B ×6 + `{{PLAN_FILE_REVIEW_REPORT}}` 5,989B ×6,
+~71.6KB total) into on-demand sections or a shared reference doc.
+
+**Why:** Largest remaining duplicated block after the preamble program lands. These
+are output TEMPLATES (table shapes, markdown skeletons), not behavioral steps — the
+classic carve candidate.
+
+**Pros:** ~1.4KB×2 saved per invocation across 6 review-family skills; single source
+for the dashboard/report format.
+**Cons:** Both blocks are partially pinned (`test/skill-e2e-review-attribution.test.ts`
+slices `## Review Readiness Dashboard`; `test/skill-validation.test.ts:1566` asserts a
+specific row) — needs a pin-relocation design first, which is why it was deferred from
+the main program.
+
+**Context:** Deferred from the token-reduction program's Phase 4 (plan on branch
+`prompt-token-load-reduction`, "NOT carving" list). The carve pipeline and guard
+registry to use are the same as carve wave 4. Start by mapping every test that slices
+or asserts dashboard/report text, then decide skeleton-vs-section placement per pin.
+
+**Effort estimate:** M (human team) → S (CC+gstack)
 **Priority:** P3
-**Depends on / blocked by:** The section pipeline (shipped v1.54). No hard blocker.
+**Depends on / blocked by:** Token-reduction program Phases 1-4 landing (carve
+machinery churn would conflict).
+
+### P3: Anchor transformFrontmatter's denylist strip to the frontmatter block
+
+**What:** `transformFrontmatter` (scripts/gen-skill-docs.ts:525-530, denylist branch)
+deletes the FIRST line matching `^<field>:` anywhere in the file, not just inside
+the frontmatter block, and would orphan continuation lines of a block-style YAML
+value. Slice the frontmatter, strip within it, reassemble.
+
+**Why:** Latent mis-strip class: a skill body line beginning `interactive:` or
+`benefits-from:` (e.g. a skill documenting the frontmatter contract) would be
+silently deleted from the render. Zero live collisions today (verified across all
+tracked SKILL.md bodies during the v1.69.x token-reduction Phase 0 review), but
+each new stripFields entry widens the exposure.
+
+**Pros:** Kills the whole latent class; makes stripFields safe to grow.
+**Cons:** Touches the generator hot path — needs a full regen + the per-host
+golden fixtures re-checked; deserves its own small PR, not a rider.
+
+**Context:** Found by the Phase 0 adversarial review on branch
+`prompt-token-load-reduction` (finding ADV4). The gen-side parser reads only
+inline `[...]` array form (gen-skill-docs.ts:751), so block-form YAML for these
+keys fails silently twice — worth a validation error at the same time.
+
+**Effort estimate:** S (human team) → S (CC+gstack)
+**Priority:** P3
+**Depends on / blocked by:** none.
+
+### P3: Revisit plan-ceo-review doctrine carve after the preamble program lands
+
+**What:** Re-evaluate carving plan-ceo-review's ~13KB of always-loaded doctrine
+(`## Prerequisite Skill Offer` 7,125B + `## Cognitive Patterns` 3,336B +
+`## Philosophy` 2,535B) into its existing sections/ dir.
+
+**Why:** Deferred from the token-reduction program because the skeleton had only
+~555B of headroom under its carve-guard ceiling and the doctrine is behavior-core.
+The preamble phases shrink the skeleton by ~22KB, which changes the tradeoff: the
+ceiling gets recomputed and the doctrine becomes the dominant remaining always-loaded
+block in the skill.
+
+**Pros:** ~3.2K tokens off every /plan-ceo-review invocation if the doctrine reads
+lazily without behavior loss.
+**Cons:** The Cognitive Patterns section shapes the review voice throughout — a
+requiredReads guard + A/B eval (same design as the design-doctrine carve) is mandatory,
+and the answer may legitimately be "keep it inline."
+
+**Context:** Filed from the token-reduction program's CEO review ("NOT carving" list).
+Measure with `bin/gstack-context-bill --skill plan-ceo-review` after Phase 3 lands;
+use the carve-guards registry + a behavioral loading eval if carved.
+
+**Effort estimate:** S (human team) → S (CC+gstack)
+**Priority:** P3
+**Depends on / blocked by:** Token-reduction program Phase 3 (re-baseline + recomputed
+carve ceilings).
 
 ## gbrowser memory follow-ups (filed via /plan-eng-review + /codex on the v1.49 leak-fix PR)
 
@@ -806,14 +963,6 @@ TOML lookup.
 **Why:** Explicit user choices should survive upgrades or say loudly that they
 will not (the hint covers the second half today).
 **Priority:** P3. **Effort:** S.
-
-### P4: `./setup --host slate` accepted but installs nothing
-
-**What:** `slate` passes the host-arg validation case but sets no INSTALL_* flag,
-so the run configures nothing and exits successfully. Either wire a slate branch
-or reject the value with guidance like openclaw/hermes/gbrain get.
-**Why:** Silent success with zero effect is the worst failure shape.
-**Priority:** P4. **Effort:** S.
 
 ---
 
@@ -2267,7 +2416,105 @@ Shipped as v0.5.0 on main. Includes `/plan-design-review` (report-only design au
 
 ### Auto-invoke /document-release from /ship — SHIPPED
 
-Shipped in v0.8.3. Step 8.5 added to `/ship` — after creating the PR, `/ship` automatically reads `document-release/SKILL.md` and executes the doc update workflow. Zero-friction doc updates.
+Shipped in v0.8.4; redesigned twice since. Current design (v0.18.2.0+, carved in
+v1.54.0.0): `/ship` Step 18 (`ship/sections/pr-body.md`) dispatches
+`/document-release` as a general-purpose subagent AFTER Step 17 (push) and
+BEFORE Step 19 (PR creation); the subagent's JSON contract (`files_updated`,
+`commit_sha`, `pushed`, `documentation_section`) is baked into the initial PR
+body. Subagent failure is non-blocking. The skeleton names "the
+/document-release subagent" at three touchpoints (section-index trigger + STOP
+pointer, Step 17 handoff, hoisted doc-sync invariant). Pinned by
+`test/ship-document-release-dispatch.test.ts` + carve-guards anchors; behavior
+proven by the `ship-docsync` gate E2E (`test/skill-e2e-ship-docsync.test.ts`).
+
+### Machine-checkable Step 18 dispatch receipt in /ship's Section self-check
+
+**What:** Make ship's "Section self-check" verify a document-release dispatch
+actually occurred (a machine-checkable marker/receipt), instead of relying on
+prompt-level invariants alone.
+
+**Why:** Prompt wording deters skipping but can't prove the dispatch happened.
+Two residual gaps from the v1.69 review are folded into this scope: (1) an
+agent invoking `/document-release` inline via the Skill tool bypasses the
+fresh-context subagent + JSON contract and no test can see it; (2) the ship
+RE-RUN path names document-release in the re-run list but no test asserts
+doc-sync on re-run.
+
+**Context:** The `ship-docsync` E2E asserts the dispatch tool-call on the
+primary path; this TODO is the enforcement layer beyond wording. Start from
+ship's Section self-check (ship/SKILL.md.tmpl) and the Step 18 parent
+processing in ship/sections/pr-body.md.tmpl.
+
+**Effort:** M (human) → S (CC+gstack)
+**Priority:** P3
+**Depends on:** ship-docsync E2E landed
+
+### Apply the dispatch-pin + E2E pattern to /land-and-deploy → /canary
+
+**What:** Same treatment ship→document-release got: name the handoff at the
+skeleton decision points, pin with carve-guards anchors + a free tripwire,
+prove with a toolCalls-assert E2E.
+
+**Why:** Identical failure class — a carve or reword can silently strand the
+canary handoff out of the always-loaded skeleton, and nothing tests it today.
+
+**Context:** Model files: `test/ship-document-release-dispatch.test.ts` (free
+pin) and `test/skill-e2e-ship-docsync.test.ts` (dispatch E2E, gate tier).
+
+**Effort:** M (human) → S (CC+gstack)
+**Priority:** P3
+**Depends on:** None
+
+### CI gate-lane hollow-coverage burn-down (evals.yml matrix)
+
+**What:** `test/evals-workflow-matrix.test.ts` (added v1.70.1.0) ratchets two
+pre-existing CI coverage holes; burn them down. (1) Eight gate-hosting test
+files have no `evals.yml` matrix row, so CI never runs them
+(`KNOWN_MATRIX_GAPS` in the test enumerates them — notably the plan-mode and
+finding-floor smokes and the AUQ format-compliance gate). (2) Four matrix rows
+point at whole-file tier-gated files but set no row `tier:` property, so with
+`EVALS_TIER` unexported those suites self-skip: `codex-e2e`/`gemini-e2e` run
+ZERO tests and report green on every PR (vestigial rows; the periodic cron
+lane owns them — consider deleting the rows), and `e2e-pty-plan-smoke` spends
+~7 min on setup then skips every describe (hollow-green since the files
+adopted `describeE2ETier('gate')` — set `tier: gate` on the row to reactivate,
+after confirming the smokes still pass).
+
+**Why:** "Gate tier blocks merge" is silently false for these files. Each fix
+is a deliberate cost/flake decision (activating paid suites on every PR), so
+they're enumerated instead of drive-by-fixed. The mechanism already exists:
+per-row `tier:` property, exported as `EVALS_TIER` by the Run step.
+
+**Context:** Found 2026-08-26 on PR #2700 while adding the `ship-docsync` row.
+Fix = add/adjust the matrix row, then DELETE the corresponding burn-down entry
+(the tripwire fails on stale entries, so cleanup is enforced).
+
+**Effort:** S per file (mechanical) + one burn-in run each to confirm green
+**Priority:** P2
+**Depends on:** None
+
+### Periodic paid-test shard census is one ungated file from the detach-timeout floor
+
+**What:** The periodic tier's shard census is 67 files — one ungated slot below
+the 68-file (17×4) ceiling. The next paid `skill-e2e-*` file WITHOUT a
+whole-file `describeE2ETier` self-gate lands at 68 (still 17 waves, floor
+32,130s ≤ 32,400s — passes); the SECOND ungated file trips 18 waves → 34,020s
+floor > the 32,400s configured detach timeout, and
+`test/eval-detach-timeout-floor.test.ts` fails with a confusing message.
+
+**Why:** Whoever adds the second ungated periodic E2E gets a floor failure
+unrelated to their change. Fix options: raise the periodic detach timeout, or
+enforce whole-file tier self-gates on all paid files (upgrades them from the
+tier-alignment warn-only bucket to the hard invariant, and — bonus — restores
+tierless `bun run test:evals` coverage decisions to diff selection alone).
+
+**Context:** `scripts/test-paid-shards.ts` `classifyPaidTestFile` counts
+ungated files in both tiers; `ship-docsync` composed `describeE2ETier('gate')`
+with diff selection specifically to avoid consuming the last free slot.
+
+**Effort:** S
+**Priority:** P3
+**Depends on:** None
 
 ### `{{DOC_VOICE}}` shared resolver
 
@@ -2743,6 +2990,78 @@ needs one paid run to validate, so it didn't ride the ship.
 **Effort:** S (human ~2h, CC ~15min + one paid run).
 
 ## Completed
+
+### P3: Carve the always-loaded `{{PREAMBLE}}` reference blocks into an on-demand doc
+
+**What:** The per-skill section carves (`/ship` v1.54, `/plan-ceo-review` v1.56) yield
+real but bounded wins (-42% to -59% on the carved skill) because the shared
+`{{PREAMBLE}}` (~40-50KB on every tier-3/4 skill) is the dominant always-loaded cost
+and stays inline. Move the rarely-needed preamble REFERENCE blocks (the AskUserQuestion
+split-rules and the CJK / lone-surrogate escaping reference) into an on-demand
+section-style doc the agent reads only when it hits those edge cases, leaving the hot
+path (voice, completeness principle, recommendation format) inline.
+
+**Why:** Highest-ROI remaining token target. One preamble carve helps EVERY tier-≥2
+skill at once, not one skill per PR. The eng-review on the plan-ceo carve flagged that
+per-skill carves stay modest precisely because the preamble dominates the always-loaded
+surface.
+
+**Pros:** A single change reduces always-loaded cost across the whole skill pack.
+**Cons:** The preamble is load-bearing and shared; a botched carve regresses every skill.
+Needs the same union-parity + per-push freshness guards the section carves use, applied
+corpus-wide.
+
+**Context:** Builds on the v2 section pipeline (`scripts/resolvers/sections.ts`,
+`{{SECTION:id}}` / `{{SECTION_INDEX}}`). The preamble source is
+`scripts/resolvers/preamble.ts`. Measure which sub-blocks are cold (escaping reference,
+split-rules) vs hot (voice, recommendation format) before cutting. Validate on one skill,
+then roll corpus-wide.
+
+**Effort estimate:** L (human team) → M (CC+gstack)
+**Priority:** P3
+**Depends on / blocked by:** The section pipeline (shipped v1.54). No hard blocker.
+**Completed:** v1.70.0.0 (2026-08-25) — delivered in a stronger form by the token-reduction program: preamble bash moved to `bin/gstack-skill-start`/`-end`, one-time onboarding became gated instruction blocks, AUQ reference rules point at on-demand docs, and 12 more skills got section carves (20 total). Wins locked by the context-budget ratchet.
+
+
+### ✅ DONE (v1.69.0.0): `./setup --host slate` accepted but installs nothing
+
+**Priority:** P4 (was filed as slate-only — shipped with the whole drift class gated)
+
+**What:** `slate` passed host-arg validation but set no INSTALL_* flag, so the
+run configured nothing and exited 0. Now an informational arm (points at
+`--host claude`; per docs/designs/SLATE_HOST.md Slate reads `.claude/skills`
+as a compatibility fallback), plus a zero-dispatch guard that errors loudly if
+any future host is accepted without an install arm, plus a cross-check test
+pinning accept-list ⊆ dispatch-arms against the hosts/index.ts registry.
+
+**Completed:** v1.69.0.0 (2026-08-22)
+
+### ✅ DONE (v1.69.0.0, gstack side): ZeroEntropy sunset detect + advisory
+
+**Priority:** P1 (calendar-driven; gbrain-side migration remains open — see
+NEXT PRIORITY)
+
+**What:** Wireup warns when ~/.gbrain/config.json names the zeroentropyai
+recipe (fail-open grep — never blocks a working setup); setup-gbrain provider
+comments say never to select the legacy recipe; USING_GBRAIN_WITH_GSTACK.md
+troubleshooting entry names the Sept 4, 2026 deadline and #2365.
+
+**Completed:** v1.69.0.0 (2026-08-22)
+
+### ✅ DONE (v1.68.1.0): Stop-hook registration pins the setup-time absolute path
+
+**Priority:** P1 (was filed Effort S, scoped to the Stop hook — shipped as the full defect class)
+
+**What:** Registering hooks from a dev worktree baked that worktree's physical
+path into global settings.json; deleting the worktree left dead hooks erroring
+on every AskUserQuestion/session stop. Fixed for ALL gstack hooks, not just
+Stop: canonical-only registration via `_hook_command_path`, a KNOWN_HOOKS
+identity table in `gstack-settings-hook` (survives Claude Code stripping
+`_gstack_source` tags), a `prune-stale [--repoint|--all]` self-healer that
+runs heal-first on every `./setup`, per-item mutation safety, a mutation lock,
+fail-closed parse, and complete uninstall/no-team teardown.
+
+**Completed:** v1.68.1.0 (2026-08-18)
 
 ### ✅ DONE (v1.66.0.0): Free suite exit code is untrustworthy — in-process force-exits mask failures
 

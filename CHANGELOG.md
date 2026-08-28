@@ -1,5 +1,415 @@
 # Changelog
 
+## [1.71.0.0] - 2026-08-27
+
+**Every skill invocation just got half the prompt bill.**
+**Same behavior, measured by A/B evals, locked by CI ceilings.**
+
+Every gstack skill pays a fixed prompt cost before doing any work. This release cuts that cost across all 62 skills and pins the wins so they can't creep back. The shared preamble's bash moved into two runtime scripts (`bin/gstack-skill-start`, `bin/gstack-skill-end`) that echo the same STATUS lines the prose always interpreted. One-time onboarding text now appears only when its gate actually fires, emitted as session-bound instruction blocks instead of riding along in every render. Eleven more skills got the section carve and office-hours' existing carve went deeper, taking the carved roster from 9 to 20: heavy reference bodies load on demand at the step that needs them, never before.
+
+### The numbers that matter
+
+Source: `bin/gstack-context-bill --diff` comparing the main render against this branch's render, both regenerated from source.
+
+| Ledger | Before | After | Δ |
+|---|---|---|---|
+| /review eager per invocation | 109.5KB (~26.6K tok) | 53.7KB (~13.0K tok) | −51% |
+| /land-and-deploy eager | 109.8KB | 54.4KB | −50% |
+| /codex eager | 100.0KB | 53.9KB | −46% |
+| Corpus on disk | 6.4MB (~1,651K tok) | 5.4MB (~1,398K tok) | −15% |
+| Repo CLAUDE.md (always-on in dev sessions) | 66.4KB | 44.9KB | −32% |
+
+50 of the 62 installed skills dropped (the rest are fixture/alias entries with no preamble to shed). The smallest real cut is −4,780 tokens per invocation (tier-1 utilities); non-carved tier-2 skills each shed a flat ~20.8KB of preamble. Zero always-on or eager growth anywhere in the diff.
+
+The behavioral proof ran before this shipped: an A/B eval pins the script render against the old inline render, a section-loading eval verifies a real agent Reads each carved section before doing its step (20 skills, data-driven), and the full paid gate passed with the environmental-only baseline. The context-budget ratchet re-captured after every wave, so each ceiling now sits at the new, lower number.
+
+### What this means for you
+
+The agent reads roughly half the boilerplate before starting your task, so first-token latency and per-invocation cost drop across every skill you run. Onboarding prompts you already answered never render again. Nothing else should feel different: if a skill behaves differently than it did on v1.69, that's a bug, and the A/B harness exists to catch it. Run `bun run test` after upgrading; the ratchet will tell you if anything grew.
+
+### Itemized changes
+
+### Added
+- `bin/gstack-skill-start` / `bin/gstack-skill-end`: the preamble and telemetry runtime, replacing ~18KB of inline bash per tier-2+ skill. Emits a `SKILL_START_PROTO: 1` handshake, STATUS lines, and gated one-time onboarding as `GSTACK_INSTRUCTION` blocks bound to a per-run session ID with a random suffix; passthrough output is sanitized so repo or prior-session content can never mint directive blocks or forge the session ID.
+- `bin/gstack-retro-metrics`: deterministic git metrics for /retro (labeled contract, local reads only), replacing inline git/awk in the skill body.
+- Section carves for 11 new skills — review, codex, land-and-deploy, autoplan, spec, setup-gbrain, qa, browse, retro, design-html, design-shotgun — plus a deeper office-hours carve (Phase 2A/2B), each with registered guards, loading scenarios, and recomputed size floors. The design carves force-read their UX doctrine before design work begins.
+- Context-budget ratchet: a free CI test grades the always-on catalog and each skill's per-invocation cost against committed ceilings; growth fails the suite, reductions re-capture and lock.
+- Six reference docs extracted verbatim from the repo CLAUDE.md (browser internals, CHANGELOG format spec, project tree, hermetic-E2E notes, slop-scan guide, OpenClaw publishing), each replaced inline by a short rule plus pointer.
+
+### Changed
+- The AskUserQuestion tool-resolution and 5+-option rules render as a compact branch table keyed on echoed STATUS lines; full split/CJK rules live at absolute install paths read on demand. All 14 mandatory format pins stay in every tier-2+ skeleton.
+- ios-fix, ios-clean, ios-sync, and ios-design-review dropped to preamble tier 2 (they never used the tier-3 sections).
+- The preamble degrades safely on stale installs: missing handshake means safe defaults, deferred onboarding (consent is never lost), and a one-line upgrade hint.
+- The privacy consent gate and telemetry prompt fire only in interactive sessions; spawned and headless runs defer them to the next human session.
+- Hermetic E2E children get seeded onboarding state in their own `GSTACK_HOME`, so evals never burn turns on first-run prompts.
+
+### Fixed
+- The once-daily artifacts pull is now non-interactive and slow-network bounded, so a hung remote can't stall the first skill invocation of the day.
+- Branch names and artifacts-repo state files are sanitized before entering STATUS output and timeline records, closing log-forgery paths via hostile ref names or planted files.
+- Skill-start no longer parses a multi-megabyte `~/.claude.json` on every invocation when no gbrain server is registered.
+
+### For contributors
+- Preamble A/B eval (`skill-e2e-preamble-script-ab`, periodic tier) pins script-render behavior against the pre-consolidation inline render; the carve-section-loading eval covers all 20 carved skills at an honest 480s ceiling.
+- New free tests: skill-start/skill-end contract and behavior (13), retro-metrics (11), onboarding moved-literals tombstone (3 tests pinning 12 literals both directions), context-budget ratchet (7). Parity baseline and ratchet fixtures re-captured; the shrink floor stays (OV8 evaluated).
+- `test/helpers/touchfiles-data.ts`: the runtime scripts joined every dep list that named the moved generators, so diff-based eval selection still fires on script changes.
+
+## [1.70.1.0] - 2026-08-26
+
+**Ship names its documentation subagent at every decision point.**
+**The handoff is now pinned by tests that fail loud if it ever goes quiet.**
+
+`/ship` has dispatched `/document-release` as Step 18 since v0.18.2.0, but the v1.54.0.0 carve moved that step into an on-demand section and the always-loaded skeleton stopped saying "document-release" at any decision point (one mention survived, buried in the re-run checklist). The wiring was intact. The visibility was gone, and nothing tested the handoff. This release restores the visibility and locks it in: the section index, the STOP pointer, the Step 17 handoff line, and a new hoisted doc-sync invariant all name "the /document-release subagent" (subagent-framed on purpose, so an agent dispatches the isolated worker instead of running a weaker inline copy). A free tripwire pins the wording, carve-guard anchors pin each touchpoint independently, and a new gate-tier E2E proves a live agent actually fires the dispatch before creating the PR.
+
+### The numbers that matter
+
+Source: this branch's eval store (`~/.gstack/projects/<slug>/evals/`, runs of `test/skill-e2e-ship-docsync.test.ts`) and `wc -c ship/SKILL.md`.
+
+| Property | Before | After |
+|--------|--------|-------|
+| Doc-sync subagent named in the Claude-host ship workflow body | 0 mentions at any decision point | 4 (section index, STOP pointer, Step 17 handoff, hoisted invariant) |
+| Tests pinning the ship→document-release handoff | none | 5 free tripwire tests + 3 per-touchpoint carve anchors + 1 gate E2E |
+| Live dispatch proof | never measured | 9/9 runs fire the dispatch before PR creation ($0.63-1.04, 234-319s each, sonnet-4-6) |
+| Always-loaded skeleton cost | 91,267 B | 91,764 B (+497 B, cap raised to 92,300) |
+
+Nine out of nine live runs is the line that matters. The E2E asserts on the actual tool-call stream, with a dispatch-specific matcher that a subagent merely quoting section text cannot satisfy, and a timeout-tolerant exit check that never softens the dispatch assert itself.
+
+### What this means for gstack users
+
+When you run `/ship`, the docs sync step is no longer an invisible line in a file the agent may summarize past. It is named at the exact moments the agent decides what to do next, and a merge-blocking test fails if any future edit makes it invisible again. A failed docs subagent still never blocks your ship. Nothing to configure. Upgrade and ship.
+
+### Itemized changes
+
+#### Fixed
+
+- `/ship`'s Claude-host skeleton names "the /document-release subagent" at all three Step 18 decision points (manifest trigger rendering into the section index and STOP pointer, the Step 17 handoff line, and a hoisted doc-sync invariant beside the PR-title invariant). The invariant states the contract plainly: the dispatch itself is never skipped; only a failed subagent is non-blocking.
+
+#### Added
+
+- `test/ship-document-release-dispatch.test.ts`: free tripwire pinning the carved Step 18 contract (imperative, `subagent_type`, JSON return keys, non-blocking clause), the three skeleton touchpoints, the invariant-above-STOP ordering, the E2E matcher's four marker strings, and the inlined Step 18 → Step 19 ordering in the codex/factory goldens.
+- `test/skill-e2e-ship-docsync.test.ts` (`ship-docsync`, gate tier): a live agent runs the sliced Step 17→19 ship tail in a hermetic git fixture; hard assert that an Agent dispatch matching the Step 18 prompt markers appears in the tool-call stream before any `gh pr create`. Fixture fails loud on step-marker drift, pins its git branch against operator config, asserts every setup command, and neutralizes the credential pre-push guard's question branch.
+
+#### For contributors
+
+- Carve-guards ship entry: three non-overlapping per-touchpoint anchors (gerund, imperative, third-person: no anchor subsumes another, so each is independently enforced), the carved imperative pinned to stay carved, skeleton byte cap 91,600 → 92,300 with the measured value recorded.
+- `ship-docsync` registered in `E2E_TOUCHFILES` and `E2E_TIERS` (gate), with a whole-file `describeE2ETier('gate')` self-gate composed with diff selection so the file stays out of the periodic shard census; the tierless `test:evals` invisibility tradeoff is documented in the file header.
+- Internal backlog notes corrected to describe the current Step 18 design (the pre-v1.54 "Step 8.5" prose was still documented as current), plus three deferred follow-ups recorded: a machine-checkable dispatch receipt, the same dispatch-pin treatment for land-and-deploy→canary, and the periodic shard-census ceiling arithmetic.
+
+## [1.69.0.0] - 2026-08-22
+
+**The silent-failure wave: tools that reported success while doing nothing —**
+**or the wrong thing — now do what they say, or say loudly that they couldn't.**
+
+Every fix in this wave closes the same failure shape. `gstack-evidence` — the tool other tools believe — certified runs whose environment differed from CI's, because bun auto-loaded the repo's `.env` files into every child it spawned. The gbrain wireup's first sync targeted the brain's *default* source, which could silently repoint a user's primary knowledge source at the gstack worktree while the just-registered source got zero pages — and still print a success line. `./setup --host slate` exited 0 having installed nothing. `land-and-deploy`'s merge recovery re-established everything except the `--delete-branch` half it had promised, and said nothing. A `_unattributed → deny` ingest policy never applied to exactly the pages it names. Skill-dir cleanup structurally could not find orphans. And a false-green test fixture meant the "gbrain missing" case could never fail on any machine with a real gbrain installed. Six fixes are new; five community PRs are absorbed with credit; ~17 tracker items close with receipts.
+
+### The numbers that matter
+
+Source: the regression tests named in each commit — every one verified to FAIL on a scratch worktree of v1.68.3.0 during the wave (the receipts standard), plus the live pre-fix probes quoted in the PR.
+
+| Property | Before | After |
+|--------|--------|-------|
+| `gstack-evidence run` in a repo with `.env`/`.env.local` | child inherits bun-injected vars; ledger certifies a run CI never performs | value-equality scrub (shell-exported overrides survive), names-only warning, `GSTACK_EVIDENCE_KEEP_DOTENV=1` opt-out. Contributed by @namtrok (#2652) |
+| Wireup first sync | `sync --repo` resolves against the DEFAULT source; can repoint its anchor, registered source gets 0 pages, prints success | `sync --source <id>`; `--help`-probed with `--repo`+warning fallback for old gbrains |
+| `./setup --host slate` | exit 0, installs nothing | explains Slate (use `--host claude`), exit 0 informational; any future accepted-but-unwired host exits 1 loudly; accept-list ⊆ dispatch-arms is test-pinned |
+| land-and-deploy merge recovery | `--delete-branch` half silently dropped | `ls-remote` reconciliation: already-clean (idempotent) / confirm-first delete / "couldn't verify" — a failed check is never read as a clean branch |
+| Orphaned skill dirs after the payload is gone | cleanup scanned the payload → structurally can't reap | destination scan, dangling-symlink aware, path-segment provenance. Contributed by @szsunyuan (#2634) |
+| `gstack-redact install-prepush-hook` on bun/Windows | EEXIST crash — credential guard silently absent | `mkdirpSync` tolerates dir-EEXIST only. Contributed by @Lockyer228 (#2641); swept to decision-log, evidence, and the prepush skip-log |
+| "gbrain missing" test on a box with real gbrain | saw the host's gbrain, exited 0 — could never fail where the bug exists | hermetic root-owned-dirs-only PATH + determinism check. Contributed by @SomSamantray (#2615) |
+| Heredoc bodies ≥512B under Homebrew bash 5.2+ | child deadlocks (macOS 512-byte pipe buffer) | `BASH_COMPAT=50` guard in the 11 in-window scripts + a repo-wide scanner ratchet. Contributed by @BenjaminDSmithy (#2640) |
+| `_unattributed → deny` policy under `--include-unattributed` | never applied — raw `""` remote bypassed the filter | stored remote matches the frontmatter sentinel; deny/read-only now bite |
+| Brains on gbrain's ZeroEntropy recipe | embedding dies silently after Sept 4, 2026 | wireup warns on config detection (fail-open); setup-gbrain + docs advisories (#2365, gbrain-side migration stays open) |
+| make-pdf sibling browse resolution | cwd-dependent (`dirname(argv[0])` is `.` in compiled binaries) | `process.execPath`-based; a decoy `browse/` directory can never win |
+
+### What this means for you
+
+Evidence verdicts are the run CI would perform — your shell-exported overrides still win, and the scrub tells you (key names only) what it removed. Revoking, cleaning up, and installing now either do the thing or name the thing they couldn't do. If your gbrain is on the dying ZeroEntropy recipe, gstack tells you before September 4 instead of letting search quietly rot. And five contributors' PRs are in this release with their authorship on the commits and their handles below.
+
+### Itemized changes
+
+#### Added
+- Zero-dispatch guard in `setup`: a host that passes `--host` validation without an install arm errors loudly (names the host and the valid targets) instead of exiting 0 having configured nothing; cross-check test pins the accept-list against `hosts/index.ts` and every accept-listed host to a dispatch arm (#2361).
+- ZeroEntropy sunset advisory: fail-open config detection in the wireup, provider-comment warnings in `/setup-gbrain`, and a troubleshooting entry in `USING_GBRAIN_WITH_GSTACK.md` (#2365 — refs; the gbrain-side migration remains open).
+- `lib/fs-utils.ts` `mkdirpSync` (dir-confirmed EEXIST tolerance) with a bun-Windows-emulating preload fixture, applied to `gstack-redact`, `gstack-redact-prepush`, `gstack-decision-log`, and `gstack-evidence`. Contributed by @Lockyer228 (#2641; fixes #2635).
+- Repo-wide heredoc scanner: any tracked shell script with an unguarded 512B–64KiB heredoc fails the free suite. Contributed by @BenjaminDSmithy (#2640).
+
+#### Changed
+- `land-and-deploy` §4a-postfail MERGED recovery reconciles the remote branch (three-way: already-clean / confirm-first delete / couldn't-verify) and states the outcome instead of staying silent (#2656).
+- `make-pdf` resolves the sibling browse binary from `process.execPath` with an injectable test seam; the `about:blank` half of #2156 was already fixed in v1.64.0.0 (`browse/src/url-validation.ts` exact-match allow).
+- `./setup --host slate` is an informational exit pointing at `--host claude` (per `docs/designs/SLATE_HOST.md`, Slate reads `.claude/skills` as a compatibility fallback) (#2361).
+
+#### Fixed
+- `gstack-evidence` scrubs bun-auto-loaded dotenv vars from the child env by value equality — a shell-exported override with a different value survives, `NODE_ENV=test` semantics mirror bun's, and an unreadable `.env` fails open (test-pinned). Known limitation documented in-code: bun-expanded `${VAR}` values are left in place (fails open). Contributed by @namtrok (#2652; fixes #2624; @harjothkhara's #2630 credited for the parallel diagnosis).
+- Wireup first sync targets the registered source id, never the default source (#2662); support-probed with a warning fallback so gbrains at the 0.18.0 floor keep working.
+- `cleanup_old_claude_symlinks` reaps orphans from the DESTINATION skills dir (dangling symlinks included) with path-segment provenance instead of a bare `*gstack*` substring. Contributed by @szsunyuan (#2634; fixes #2204).
+- `gstack-memory-ingest` stores the normalized `_unattributed` remote so repo policies keyed to it actually apply under `--include-unattributed` (#2353).
+- Hermetic gbrain-missing PATH fixture kills a false green on every machine with a real gbrain install. Contributed by @SomSamantray (#2615; fixes #2255).
+
+#### For contributors
+- Tests: 8,036 → 8,078 (+42 across the wave; every behavior fix carries a regression test proven red on v1.68.3.0).
+- The heredoc scanner now gates every tracked shell script — new scripts with 512B–64KiB heredoc bodies need the `BASH_COMPAT=50` guard (or smaller/file-based bodies).
+- On bash 4.3/4.4 (e.g. Git Bash), `BASH_COMPAT=50` prints a non-fatal `invalid value` stderr warning; those bashes never took the pipe path, so the guard is a no-op there.
+
+## [1.68.3.0] - 2026-08-20
+
+**Re-pairing a browser agent to narrow its access now revokes the old access on**
+**the spot, revoke frees the agent's tabs, and `root` is a reserved client name.**
+
+Tightening a paired agent is supposed to be one re-pair away. It wasn't. `POST /pair` minted a fresh setup key but never touched the agent's live session, so `pair-agent --client codex --restrict read` against an agent that had already connected (or whose new 5-minute key simply expired unexchanged) left the original full-access session, `eval` included, alive for up to 24 hours. Revocation also never released tab ownership, so an agent re-paired under the same name inherited the previous one's authenticated tabs. And because `root` is the sentinel the scope, domain, rate, and tab checks use for the omnipotent caller, `--client root` minted a "scoped" token that skipped all of them.
+
+### The numbers that matter
+
+Source: the before/after `BROWSE_HEADLESS_SKIP=1` daemon transcript in the PR and the regression tests in `browse/test/pair-agent-e2e.test.ts`, `browse/test/token-registry.test.ts`, and `browse/test/tab-isolation.test.ts`, which fail on the previous release.
+
+| Property | Before | After |
+|--------|--------|-------|
+| Re-pair to narrow, agent hasn't reconnected | old wide session lives ~24h | old session 401s immediately |
+| Narrowing re-pair before the agent connects | stale broad setup key still exchangeable | broad key dead, only the narrow key works |
+| Broaden/refresh re-pair mid-task | old session lingers alongside a new key | working session kept, stale key dropped, no outage |
+| Revoke a paired agent | tabs stay owned; same-name re-pair inherits them | tab ownership released; own-only access denied |
+| `--client root` | "scoped" token bypasses all enforcement | rejected with a named 400 and a CLI fast-fail |
+
+### What this means for you
+
+Re-pair is now the real tightening lever. Re-pair an agent with its **same `--client` name** and a narrower `--restrict`/`--domain`, and the previous session is revoked and its tabs released the instant you run it, so the old access can't linger while you wait for the agent to reconnect. Broadening or refreshing the same agent leaves its working session alone, so you never strand an agent mid-task. Revoking (or a narrowing re-pair) also frees the tabs the agent opened, so reusing a client name can't hand the next agent someone else's logged-in page. `root` is rejected as a client name on both the CLI and the daemon.
+
+### Itemized changes
+
+#### Fixed
+- A reducing re-pair (`/pair` with fewer scopes, tighter domains, a lower rate, or a stricter tab policy) revokes the client's live session and releases its tabs before minting the new key; the response carries `superseded`. Non-reducing re-pairs keep the session and only drop stale pending setup keys, so a broaden or refresh never strands a working agent. The requested grant is validated before any revoke, so a re-pair with a bad scope or rate is rejected without knocking the live session offline. (`browse/src/server.ts`, `browse/src/token-registry.ts`)
+- A narrowing re-pair issued before the agent connects invalidates the earlier, broader setup key, so it can no longer be exchanged. (`browse/src/token-registry.ts`)
+- Revoking an agent releases the tab ownership it held: `DELETE /token` runs the release unconditionally (ownership outlives the token) and reports `tabs_released`, and an own-only client re-paired under the same name can no longer read those tabs. A re-pair with no live session likewise frees any tabs orphaned by an expired incarnation, so a fresh session can't inherit them. (`browse/src/browser-manager.ts`, `browse/src/server.ts`)
+- `root` is rejected as a `clientId` at every token writer, so a scoped token can never carry the sentinel that bypasses scope, domain, rate, and tab checks; `/pair` and `/token` return a named 400 and the CLI rejects `--client root` before it reaches the daemon. A persisted `root` entry is skipped when the registry is restored. (`browse/src/token-registry.ts`, `browse/src/cli.ts`)
+
+#### For contributors
+- Regression coverage pins each property: the reduce / broaden / shadow-key re-pair behaviors and the `grantReducesAccess` truth table (scope, domain direction, rate `0`=unlimited, tab policy) in `browse/test/pair-agent-e2e.test.ts` and `browse/test/token-registry.test.ts`; tab-ownership release and post-release denial in `browse/test/tab-isolation.test.ts`; reserved-name rejection across writers, routes, and registry restore.
+
+## [1.68.2.0] - 2026-08-20
+
+**Revoking a paired agent now revokes everything it holds, and the**
+**documented kill switch is real: tunnel revoke deletes, then proves it.**
+
+Revoking a remote agent was broken twice over. `revokeToken` deleted only the first token matching the agent's name, and the spent setup key kept for connection retries always sat first in line. So `DELETE /token/<agent>` returned 200 while the live session kept working, a leftover unspent setup key could mint a brand-new session for a "revoked" agent (inside the key's 5-minute validity), and a second DELETE returned 200 again. Meanwhile the documented way out, `$B tunnel revoke`, did not exist: the CLI forwarded it to the daemon as an unknown command. The pairing docs also promised a read+write sandbox three releases after pairing deliberately switched to full page access.
+
+### The numbers that matter
+
+Source: the before/after curl transcript in the PR (a `BROWSE_HEADLESS_SKIP=1` daemon on each branch) and the regression tests in `browse/test/token-registry.test.ts` and `browse/test/tunnel-revoke-cli.test.ts`, which fail on the previous release.
+
+| Metric | Before | After |
+|--------|--------|-------|
+| DELETE /token with a pending setup key | 200, session survives | 200, all 3 tokens deleted |
+| Revoked agent re-connects via leftover key | new session minted | 401 |
+| `$B tunnel revoke <name>` | Unknown command 'tunnel' | revokes, then verifies against /agents |
+| Second DELETE for the same agent | 200 again | 404 |
+| Bare `--restrict` (forgotten value) | silent FULL access | hard error, exit 1 |
+| Docs on default pairing scopes | "read+write, no JS" | read+write+admin+meta, stated plainly |
+
+### What this means for you
+
+Revoke means revoked: one command deletes the session and every setup key, prints the count, and re-reads the agent list to prove the agent is gone. `$B tunnel agents` shows everyone paired, pending setup keys included. The pairing docs now tell the truth about default access, when to reach for `--restrict` (agents reading untrusted pages), and that `$B stop` clears every token at once. Scope typos fail at `/pair` naming the bad scope instead of surfacing to the remote agent as a body error, and a scopes list can no longer smuggle in the `control` scope.
+
+### Itemized changes
+
+### Added
+- `tunnel revoke <name>` and `tunnel agents` CLI subcommands: pre-server (never boot a daemon to revoke against it), post-revoke verification re-read, truthful exit codes for unknown names, unreachable daemons, and old daemons that claim success while the agent stays listed.
+- `GET /agents` lists pending (unexchanged) setup keys, marked `pending`; setup-key tokens never leave the server. `DELETE /token` responses carry `tokens_deleted` and the daemon logs the count.
+
+### Changed
+- The CLI always sends an explicit scopes list; both CLI and server reference one exported `DEFAULT_PAIR_SCOPES` constant, pinned by a source tripwire so the defaults cannot drift apart again.
+- The scope-denied 403 hint recommends re-pairing without `--restrict` or with `--control`; it no longer suggests `--admin`, which over-granted browser control.
+- pair-agent/SKILL.md, REMOTE_BROWSER_ACCESS.md, and ARCHITECTURE.md document the real default, `--restrict`, and the tunnel allowlist nuance (`eval` works remotely; `js`/`cookies`/`storage` are local-only). The never-implemented `tunnel rotate` is replaced by `$B stop`, and the phantom `/sidebar-chat` tunnel entries are gone.
+
+### Fixed
+- `revokeToken` deletes ALL tokens for a client id: the session plus spent and pending setup keys. Closes the false-200 revoke and the re-grant hole.
+- Bare `--restrict` (or `--restrict` swallowing the next flag) errors out instead of silently granting full access; `--restrict` can never grant `control`.
+- Scope and rateLimit typos are rejected at `/pair` and `/token` with the field named; `rateLimit: 0` (unlimited) survives the /pair path.
+- `DELETE /token/:id` decodes percent-encoded client ids, so names with spaces round-trip from the CLI.
+
+### For contributors
+- 35 new test cases: revoke-all regression shapes, a subprocess CLI harness with stub daemons pinning the version-skew net ("Revocation incomplete" on a lying daemon) and every CLI error branch, e2e scope-contract and 403-hint pins, and code-shape tripwires for `DEFAULT_PAIR_SCOPES` and the decode path.
+
+## [1.68.1.0] - 2026-08-18
+
+**Phantom hook errors are dead. Your settings.json now heals itself**
+**on every setup, and no ephemeral path can ever be baked in again.**
+
+If you work in Conductor workspaces or git worktrees, you have probably seen it: `PostToolUse:AskUserQuestion hook error ... No such file or directory` spraying on every question, pointing at a workspace you deleted last week. The cause was a three-part failure. Setup baked the running tree's physical path into your global `~/.claude/settings.json`, the Conductor auto-opt-in overrode the exact flag `bin/dev-setup` passes to prevent that, and the dedupe tag gstack relied on gets stripped by Claude Code itself, so every new workspace appended a fresh dead entry instead of replacing the old one.
+
+All three are fixed at the root. Hook registration is now canonical-only: commands point at the stable `~/.claude/skills/gstack` install or are not registered at all. Ownership is decided by a fixed identity table in `bin/gstack-settings-hook`, per hook item, so it survives tag-stripping and can never claim a hook you wrote yourself. And every `./setup` run now heals first: `gstack-settings-hook prune-stale --repoint` removes dead gstack entries, re-points stale ones, restores stripped tags, and collapses duplicates, printing one line only when it changed something.
+
+### The numbers that matter
+
+Source: the 2026-08-17 incident on a real dev box, replayed byte-for-byte as the `incident facsimile` test in `test/gstack-settings-hook-schema-aware.test.ts`.
+
+| Metric | Before | After | Δ |
+|--------|--------|-------|---|
+| Hook entries in settings.json | 11 (6 dead) | 5, all canonical | −6 dead |
+| Error lines per AskUserQuestion | 4 | 0 | −4 |
+| Hook processes spawned per question that do nothing | 4 | 0 | −4 |
+| Traced code paths under test | — | 53 of 61 (87%) | new |
+
+The healer also fixes damage you could not see: a corrupt settings.json is never overwritten (every mutator now fails closed instead of clobbering it with `{}`), a user-tightened 0600 file keeps its mode across rewrites (settings.json can carry API keys), concurrent setups can no longer rename a half-written temp file into place, and uninstall now cleans hooks BEFORE deleting the install root, which previously made cleanup silently no-op in exactly the case it existed for.
+
+### What this means for you
+
+Run `./setup` (or `/gstack-upgrade`) once and the errors stop, on every machine, with a printed receipt of what was healed and a backup beside the file. New workspaces can never reintroduce them. If you ever want everything gone, `gstack-uninstall` now actually removes every gstack hook, including the ones an older version orphaned.
+
+### Itemized changes
+
+### Added
+- `gstack-settings-hook prune-stale [--repoint <root>] [--all]`: self-healing for hook registrations. Dead gstack entries pruned, stale paths re-pointed at the stable install, stripped `_gstack_source` tags restored from the identity table, exact duplicates and within-entry twins collapsed. Runs automatically at the start of every `./setup`; `--all` is the complete teardown sweep used by uninstall and `--no-team`.
+- `gstack-config has <key>`: key-presence check through the same state-dir resolution as `get` (which returns defaults for absent keys), so consent logic can tell a recorded decision from a default.
+- KNOWN_HOOKS identity table covering all six gstack hooks (plan-tune trio, timeline Stop, session update, verify-gate), shared by registration dedupe and the healer so the two can never drift.
+- A mutation lock around every settings.json write: mkdir-based with an owner token, ownership-checked release, and atomic stale-lock takeover. Backups get unique names and rotate (10 kept); `rollback` validates its pointer and restores atomically.
+
+### Changed
+- Hook registration is canonical-only. Setup never writes a running-tree path into global settings; if the stable install is missing a hook, it skips with a visible log line instead. The Conductor auto-opt-in for AskUserQuestion reliability hooks now respects explicit decisions (flag, env, or a recorded config key) and fires only on the true silent fall-through.
+- `add-event` is the single quoting authority: registered commands are normalized once (whitespace and shell metacharacters escaped), so a spaced or `$`-bearing install path produces a working hook from the first registration. Windows gets the required `bash ` prefix on all hooks, not just SessionStart, and MSYS-form paths no longer read as dead to the healer.
+- All settings.json mutators are per-item: a hook you co-located in the same entry as a gstack hook survives every gstack operation, including uninstall, and gstack never tags an entry that contains your items.
+- Teardown paths (`gstack-uninstall`, `./setup --no-team`) run hook cleanup before any deletion, sweep untagged strays by identity, and keep stderr attached so a skipped cleanup is loud, never silent.
+
+### Fixed
+- Deleted Conductor workspaces and worktrees no longer leave dead hooks erroring on every AskUserQuestion, session start, and stop event.
+- A corrupt settings.json is preserved and reported (exit 3) instead of being replaced with an empty object by the next hook operation.
+- settings.json file mode is preserved across rewrites; fresh files are created 0600.
+- Liveness checks treat only provable absence as dead, so an unmounted volume or permission blip cannot prune a working hook.
+- A vacuous test in the banner-tripwire check executed its script through JSON-as-shell-quoting, silently littering a `2nelsen` artifact in the repo root on every suite run while asserting nothing; it now passes the script as argv and asserts both branches.
+
+### For contributors
+- 60+ new or updated test cases across 8 files, including the incident facsimile, a two-writer concurrency smoke, an uninstall test that runs the installed copy from inside the root it deletes, held-lock teardown visibility, quoting round-trips, and static tripwires pinning canonical-only registration, heal-first ordering, matcher-literal parity, and the shared-prelude call sites.
+- The review pipeline for this release (five specialists plus red team plus two Codex passes) contributed 14 verified hardening fixes; rejected findings are documented in the PR.
+
+## [1.68.0.0] - 2026-08-18
+
+**The next tracker wave: 16 verified fixes in, 90 stale PRs and 21 issues out.**
+**Six community contributors credited, one queue race killed for good.**
+
+This release lands the full next-wave queue: six community PRs ported with
+authorship intact, ten fixes of our own, and the six adversarial-review
+residuals the last wave deferred. The headline internals: the brain-sync
+queue moved to a per-record spool directory, so the enqueue/drain race class
+is structurally gone, not narrowed. The session-update lock records the
+process that actually holds it, heartbeats while it works, and expires on a
+hard TTL, so concurrent updaters can no longer trample a live install. And a
+live bug caught during this wave's own review, a stray `~/.git` directory
+silently misfiling decisions and learnings into the wrong project store, is
+fixed with a self-healing cache and a ten-case parity suite.
+
+### The numbers that matter
+
+Source: this branch vs main (`git diff main...HEAD --stat`), the wave's
+coverage audit, and the tracker close-out run on 2026-08-17.
+
+| Metric | Value |
+|---|---|
+| Fixes landed (issues closed by this release) | 16 |
+| Community PRs ported with credit | 6 (6 contributors) |
+| Open PRs closed with receipts | 90 |
+| Stale issues closed with version pointers | 21 |
+| Diff | 133 files, +6,276 / −649 |
+| New/extended test files | 31 (coverage audit: 96% of changed surfaces at behavior+edge+error depth) |
+| Review rounds absorbed pre-merge | 3 (specialist army, then two cross-model adversarial passes) |
+
+The tracker numbers are the striking ones: 111 stale items left the queue in
+one day, each with a receipt naming the release that covered it. Contributors
+whose fixes were absorbed months ago now have closure with credit instead of
+an open PR going quiet.
+
+### What this means for you
+
+If a skill ever told you the brain queue was empty while records sat in it,
+or `--probe` promised thousands of pages that `--bulk` then refused, or a
+second Claude session stomped your gstack update mid-pull, those classes are
+closed and each one is pinned by a regression test. Update with
+`/gstack-upgrade`, which itself now fast-forwards first and never discards
+unpushed work without telling you exactly what it would delete.
+
+### Itemized changes
+
+#### Added
+- `/scrape` and `/skillify` now carry the untrusted-content processing rules,
+  single-sourced with the browse reference so the wording can never drift.
+  Re-derived from PR #2612. Contributed by @Lockyer228 (#2441).
+- `$B cdp` allows `Emulation.setCPUThrottlingRate` and
+  `Network.emulateNetworkConditions` for real perf measurement on simulated
+  low-end clients. Overrides persist until cleared; the justifications say so.
+  Contributed by @henbima (#2602).
+- Transcript ingest honors the per-remote trust store: `deny` and `read-only`
+  remotes are skipped with per-tier counts, a corrupted store aborts before
+  any write, and the policy lookup is one batched subprocess for the whole
+  corpus (#2392).
+- The gbrain source worktree advances on the daily sync, so brains stop
+  serving stale pages between setups. The unattended path refuses dirty
+  worktrees and never force-removes (#2516).
+- `gstack-gbrain-repo-policy get --batch`: one spawn classifies every remote.
+
+#### Changed
+- **Behavior change:** `gstack-config get <unknown-key>` now exits 1 with
+  empty output, so `|| echo fallback` callers finally fire. Keys whose empty
+  value is meaningful (`cross_project_learnings`, `salience_allowlist`,
+  `user_slug_at_*`, `redact_repo_visibility`, `repo_mode`) still return empty
+  with exit 0. Scripts that relied on unknown keys silently returning empty
+  with exit 0 must add a fallback. Contributed by @benjaminberes-bp (#2611).
+- The brain-sync queue is a maildir-style spool (`.brain-queue.d/`, one file
+  per record, atomic rename). Writer and drainer never share an inode; the
+  drain deletes only records classification proves were staged or dropped,
+  so a classifier crash or a malformed pulled privacy map retains everything
+  instead of discarding it. Legacy queues migrate on the next drain.
+- `--probe` in memory-ingest counts through the same attribution and policy
+  gates as `--bulk`, with a bounded 256KB read per transcript, so its numbers
+  are the numbers. Re-derived from PR #2612. Contributed by @Lockyer228 (#2394).
+- `/gstack-upgrade` fast-forwards with autostash first; the destructive
+  fallback runs only on a provably-clean tree with no unpushed commits, or
+  after an explicit confirmation listing exactly what would be discarded (#2517).
+- Skill completion always reviews the session for durable learnings and says
+  so explicitly when there are none. Re-derived from PR #2612. Contributed by
+  @Lockyer228 (#2402).
+- `/codex` documents the measured session-overhead reality: resume does not
+  amortize the prelude, so prefer one call per skill (#2387).
+- MCP scope resolution is project-first everywhere, matching Claude Code's
+  verified precedence, and one project's remote gbrain registration no longer
+  reclassifies every other project on the machine.
+
+#### Fixed
+- plan-tune refuses `never-ask` on one-way question ids at write time and
+  reports previously-stored inert preferences in `--stats`. Contributed by
+  @szsunyuan (#2488).
+- A typo'd `gstack-redact` subcommand exits 1 with usage instead of silently
+  scanning stdin (or hanging on a terminal). Contributed by @kinoko-studio.
+- One ambiguous ref no longer kills the whole annotated screenshot: exact
+  matches stay exact, ambiguous refs fall back to first-match and are counted
+  visibly in the output. Contributed by @namtrok.
+- `gstack-version-bump repair` refuses to write a fabricated `0.0.0.0` into
+  package.json when VERSION is missing or empty, while a genuine `0.0.0.0`
+  file still repairs. Re-derived from PR #2612. Contributed by @Lockyer228 (#2600).
+- The session-update lock records the live holder (not the exited parent),
+  heartbeats during long pulls and setups, expires on a hard TTL so a
+  recycled PID cannot wedge it, and reclaims atomically with an
+  ownership-checked cleanup (#2613).
+- `gstack-slug` resolves the canonical owner-repo slug even when a stray
+  marker directory sits above the repo; the poisoned-cache shape self-heals,
+  legitimate sticky identities are preserved, and the native Windows fallback
+  agrees with the shell implementation on every pinned fixture.
+- `/review` checklist paths resolve from the installed skill root, so review
+  runs work in every target repo, not just gstack's own checkout (#2518).
+- next-version's offline fallback queries live remote refs without mutating
+  local state, fetches unreadable claims before giving up, and never silently
+  reissues a sibling branch's version.
+- Setup-registered hooks prefer the global install path and re-point stale
+  absolute paths on re-run; duplicate registrations collapse to one; a
+  corrupt settings.json is refused loudly instead of being replaced.
+- Windows: every `Bun.spawn` in browse carries `windowsHide` with a census
+  tripwire, and project-scoped brains resolve on backslash paths.
+
+#### For contributors
+- 90 absorbed or superseded PRs and 21 fixed issues were closed with receipt
+  comments pointing at the releases that covered them; ported PRs close with
+  porting-commit receipts when this release merges.
+- The parity-suite skeleton ceilings absorbed this wave's preamble growth
+  with measured notes; the referenced-path scanner self-check re-anchored to
+  the installed-root form.
+- New follow-ups filed in TODOS.md: skillify structural isolation, slug store
+  migration for pre-fix data, deny retroactivity for already-ingested pages,
+  and the slug heal-probe cache sentinel.
+
 ## [1.67.2.0] - 2026-08-18
 
 **Codex installs now match the model you actually run.**

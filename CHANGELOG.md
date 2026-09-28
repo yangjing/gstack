@@ -1,5 +1,415 @@
 # Changelog
 
+## [1.91.2.0] - 2026-09-25
+
+`/sync-gbrain` can check whether the current worktree's pages are readable without writing a probe page or deleting guidance when the answer is uncertain.
+
+### Fixed
+- Readiness now matches the registered source to this worktree before checking its page count, then reads a page from that same source. A foreign pin, failed read, invalid count, or unavailable service stays `unknown` and preserves existing guidance; a verified empty source can still offer reindexing.
+- The Windows readiness fixture invokes the same Bun-backed `gbrain` command through a `.cmd` shim and preserves the inherited PATH spelling and separator.
+- Importing terminal-agent helpers no longer boots the CLI or installs global process handlers; direct launches still enforce their startup-record check.
+- The developer-experience question-floor check recognizes a grounded target choice by its structure rather than one phrasing, without accepting unrelated answers.
+- Engineering review follows its preparation and complexity-gate paths in order, keeps each decision and required report write verifiable, and never enables calibration write-back without its explicit gate.
+
+### Changed
+- The PR evaluation plan includes source-scoped readiness coverage and the resulting judge and supervision budgets without reducing individual test timeouts, retries, or concurrency.
+
+## [1.91.1.0] - 2026-09-25
+
+### Fixed
+
+- Find Impeccable installed through the Claude Code plugin marketplace, including a trusted custom `CLAUDE_CONFIG_DIR`. Preserve traditional skill installs and the existing explicit-engine, PATH and standalone-cache priority.
+- Select plugin versions deterministically with strict semver ordering and support for hash-named versions. Keep a selected installation's launcher, engine and engine version together instead of borrowing an older plugin's engine.
+- Use the same strict ordering for the standalone engine cache, retaining its semver-only policy and precedence. Do not follow cache directory symlinks or repository configuration links into unrelated filesystem trees.
+- Preserve repository and symlink execution boundaries, sanitize discovery diagnostics, and quote or suppress launcher hints when a filename cannot be represented safely. Discovery never downloads or runs a launcher; engine compatibility warnings and install consent remain unchanged.
+- Compare canonical HOME paths at the trust boundary, so home-directory aliases and dotfiles repositories do not hide user-installed engines or admit private home files as scan targets.
+- Add plugin discovery, handoff, malformed-version and adversarial-path regressions, plus Windows-safe discovery cases selected by the native Windows test lane.
+
+Includes the plugin-cache discovery contribution from @SomSamantray in #2976.
+
+## [1.90.2.0] - 2026-09-24
+
+**Spend less time waiting for tests.**
+**Merge with clearer safeguards.**
+
+The local test runner uses available CPUs and removes repeated setup without removing test scenarios. Independent question checks run concurrently rather than waiting for one another. `/land-and-deploy` ties your approval to the selected PR, head and destination branch, checks server state before a merge fallback, and keeps missing deployment evidence visible.
+
+### The three numbers that matter
+
+Source: matched Linux component benchmarks in [docs/TEST_PORTFOLIO.md](docs/TEST_PORTFOLIO.md), which names the test files, workload and coverage. The live comparison runs both periodic AUQ files with five independent captures. These are separate component measurements, not a complete paid-suite or CI speedup.
+
+| Workload | Before | After | Δ |
+|---|---:|---:|---:|
+| Nine synthetic-terminal test files | 165.87s | 72.98s | −56% |
+| Publication polling and watchdog tests | 56.57s | 9.63s | −83% |
+| Two independent-question test files | 325.09s | 136.40s | −58% |
+
+The synthetic-terminal checks save about 93 seconds of repeated waiting. Question checks retain every independent trial and their original grading rules; parallel execution is not permission to substitute one successful answer for several samples.
+
+### What this means for developers
+
+Use `bun run test` for complete free validation; the quick subset is still only a feedback lane. When landing a PR, a changed target requires fresh readiness and approval. A staging check after merge no longer implies production is held, and a healthy old page does not prove the new revision deployed. Run your checks, then use `/land-and-deploy` to review the evidence before merging.
+
+### Itemized changes
+
+#### Changed
+
+- Local free-test workers follow available CPU affinity, with a minimum of one and the existing maximum of six. Explicit worker overrides and the separate CI matrix retain their behavior; Windows CI explicitly keeps its two-worker budget.
+- Deployment reports distinguish deployment status, production health, staging verification and completed rollback. Requests to stage before production stop before merge with a handoff to the configured pipeline.
+
+#### Fixed
+
+- Browser-consent checks distinguish a promised new consent question from an immediate drive offer, while still rejecting conditional drive permission before Aside is ready.
+- Review fixtures accept explicit no-change answers and coverage-reporting statements without authorizing source edits or index-flag changes.
+- Merge fallback requires authoritative confirmation that neither an auto-merge request nor a queue entry exists. Confirmed merges are never replayed, and changed heads or destination branches invalidate earlier approval.
+- Rollback distinguishes true merge commits, squash merges and rebase ranges. Failed or unverified deployment and canary checks remain visible rather than becoming success labels.
+
+#### For contributors
+
+- Repository release guidance defaults to autonomous patch bumps, including queue collisions. Merge approval remains separate.
+- Synthetic terminals signal readiness; publication tests advance a scoped clock through the original polling sequence; watchdog scenarios share compilation but retain isolated executables and state.
+- Free-only dependency exemptions are explicit, mapped dependencies take precedence, and unknown changes retain conservative paid selection. The portfolio document assigns separate responsibilities to structural tests, quality judges, native behaviors, simulations and platform integrations.
+- Native question, shared-code review and design-detector fixtures validate their actual supported interactions and executed evidence. Source-detector assertion failures are recorded after validation, with attempt-specific diagnostics retained beyond cleanup.
+
+## [1.90.0.0] - 2026-09-24
+
+Cookie imports now keep the chosen browser, profile, and destination explicit, show partial failures, and distinguish copying cookies from proving that you are signed in.
+
+### Added
+- macOS Dia discovery and profile selection, using the existing Chromium cookie reader. Live native Dia import remains unqualified; fixture coverage is not a claim of native compatibility.
+- Optional sign-in verification against an exact, visible identity assertion on the selected destination, with separate copied and verified results.
+- Explicit current-origin storage recovery. Storage is preserved by default; an opted-in reset clears that origin's localStorage and only the target tab's sessionStorage.
+
+### Fixed
+- Prefer renamed profiles from Local State, distinguish duplicate names, and require selection rather than guessing among plausible accounts. Bare and dotted domain selections now match the intended cookie scope without broadening it.
+- Register picker imports with the browser's imported-domain security guard, reject cross-origin picker mutations, and bind asynchronous operations to their original destination. Opening another picker makes old windows fail closed instead of silently changing their target.
+- Show complete, partial, zero, and failed imports accurately. Stale discovery responses and duplicate submissions no longer overwrite the current picker state.
+- Bound credential subprocess output and cleanup, retry only transient database reads, and prevent automatic replay of cookie-import mutations. The Node server uses a real read-only SQLite adapter.
+
+### Changed
+- Picker handoff codes last five minutes and remain single-use. Browser guidance explains profile selection, storage-reset consent, and the difference between copied cookies and verified sign-in.
+- Native Windows extraction uses a sandboxed, owned-process, pipe-only path with bounded cleanup and no TCP fallback. Its qualification allowlist is empty in this release, so encrypted-cookie extraction through this path stays disabled with manual-sign-in guidance.
+- Added isolated platform qualification, launch diagnostics, and regression coverage. Native Dia and protected default-profile Windows qualification remain incomplete; diagnostic passes do not count as successful imports.
+
+## [1.89.1.0] - 2026-09-24
+
+### Removed
+
+- **Continuous checkpoint commits.** Skills no longer ask users to enable automatic `WIP:` commits or instruct agents to create them. The checkpoint mode and push settings are no longer advertised or consumed, and existing saved settings are left untouched.
+- **Checkpoint-specific shipping cleanup.** `/ship` no longer exports checkpoint context or rewrites WIP history. It keeps its normal bisectable commit workflow and proceeds directly to verification when changes are already committed. Explicit `/context-save` and `/context-restore` remain available.
+
+### Fixed
+
+- **Native DevEx evaluation replies.** The test driver recognizes the editor hint shown when Claude Code focuses a custom answer, while still checking the exact question and reply before submitting.
+- **Shared-code review evaluation replies.** The no-change driver can use an explicit preservation description to interpret a shorthand label, while still rejecting mixed fix/skip choices and ambiguous answers.
+- **Windows timeout test readiness.** The process-cleanup regression waits for a live descendant before firing its registered deadline, while a separate real-clock case keeps startup bounded.
+- **Design consultation workflow.** Font and design rules now precede proposal drafting and independent input. Optional-browser routing, existing-system choices, preview feedback and command/session requirements are explicit, and token extraction cannot write the project's design file before approval.
+- **Shipping and engineering-review gates.** Missing dispatched reviewers now have an explicit stop/resume path, late shipping fixes return through fresh review, and evidence recovery distinguishes stale inputs from an unavailable ledger. Engineering review separates scope assessment, selector answers and remedy decisions, with ordered preparation and recovery.
+
+## [1.89.0.0] - 2026-09-24
+
+**Find shared code worth keeping.**
+**Get the evidence before you extract it.**
+
+`/deslop-shared-libs` finds places where sharing code could remove duplication and prevent repeated fixes. It starts with the preceding 14 UTC days of commits and PRs, plus relevant work on your branch, then follows the callers and helpers behind promising candidates. Each recommendation names compatible source locations, a small helper, the tests needed, and estimated savings after integration work. The skill recommends changes and stops; it does not edit your project or create issues or PRs.
+
+### The three numbers that matter
+
+Source: the workflow contracts in `deslop-shared-libs/SKILL.md.tmpl`, `plan-eng-review/sections/review-sections.md.tmpl`, and `review/SKILL.md.tmpl`, plus the generated catalog census. Run `bun test test/shared-libs-rendering.test.ts test/catalog-budget.test.ts` to verify distribution and catalog size. These are feature and source-size counts against v1.87.5.0, not performance measurements.
+
+| Metric | Before | After | Δ |
+|---|---:|---:|---:|
+| Dedicated recent-work shared-code audit skills | 0 | 1 | +1 |
+| Parent reviews using the shared-code rubric | 0 | 2 | +2 |
+| Generated catalog name and description bytes | 4,593 | 4,675 | +82 |
+
+`/plan-eng-review` and `/review` now apply the same criteria within the plan or diff you are already reviewing. They check existing helpers, caller compatibility, tests, and the risk of sharing a bug. They do not run the broader history audit.
+
+### What this means for developers
+
+You get up to five supported opportunities and up to three recommendations, with PR-covered work separated and missing evidence disclosed. Optional extractions require approval and do not lower the review score or block a clean result. A skipped extraction is reused only when its identity, branch, and verified source snapshot still match; actual defects keep normal fix handling. Run `/deslop-shared-libs`, or name a narrower area and time window.
+
+### Itemized changes
+
+#### Added
+
+- **`/deslop-shared-libs` recommends useful shared-code extractions.** Reports link authored callers, prefer existing helpers, account for tests and integration, and explain reliability gains and risks. Generated and third-party copies do not count toward savings. Fewer recommendations, including none, are valid.
+- **Recent work includes PR overlap checks.** The audit distinguishes code changes from comment activity, checks relevant older open PRs within a bounded scan, charges repeated page requests against the limit, and reports inaccessible history or truncated coverage. API reads never create response files, including temporary files outside the project.
+
+#### Changed
+
+- **Engineering plans and code reviews share one extraction rubric.** `/plan-eng-review` can evaluate proposed callers with labeled assumptions. `/review` checks actual changed code and related callers even for small diffs and Codex installations without Review Army.
+- **Extraction advice stays separate from defects.** Advice requires approval, survives review persistence with its source evidence, and cannot suppress a real defect. Reusing a previous skip requires matching structural identity, verified source coverage, and branch binding.
+- **Decision briefs retain their headings and closing tradeoff in native question tools.** The question carries its pros-and-cons heading and final summary; options retain their own benefits and drawbacks.
+
+#### For contributors
+
+- Added generated-host, discovery, identity, fixture, source-binding, and behavioral coverage. Gate evaluations exercise read-only access and the review action/persistence lifecycle; periodic evaluations cover ranking, PR overlap, and live Codex behavior.
+- Coverage evaluations now recognize complete combined source reads and explicit diagram legends while retaining checks for source ownership, missing output, and contradictory evidence.
+- First-question evaluations capture public native questions with a restricted tool set. Mode selection uses the actual question-tool callback and stops without answering. Provider failures and stale output remain failures. Interactive captures survive fixture cleanup when an output directory is configured, including local runs without a named run ID.
+
+## [1.88.1.0] - 2026-09-22
+
+Credential masking follows the exact detected source, and pre-push scans follow the actual destination. Browser agents and CSO operations retain precise ownership, while settings updates and artifact reinitialization preserve user-owned data.
+
+### Fixed
+- Credential masking uses original spans mapped from normalized matches, so anchored assignments, repeated values, Unicode and entity input redact the flagged value without masking a later neighbor. Sanitizable CSO source stays readable as masked text; unmaskable payloads remain withheld.
+- Pre-push scans bind their ranges to the destination's name and effective URL, including separate push URLs. Missing advertised objects use a conservative range, SHA-256 repositories get the correct empty tree, and bounded slices retain normalized proximity context without fabricating line anchors or duplicate findings. Unscannable long lines or context windows still block explicitly.
+- Hermetic evaluation children reject credential-shaped variables admitted through broad CI prefixes, while preserving CI metadata, named provider authentication and explicit runner overrides.
+- Browser agents belong to the persistent daemon and an exact process generation. Replacement requires confirmed exit, failed startup retains uncertain children, and publication and shutdown share a lock so older generations cannot delete a successor's discoverability files. Repeated failed respawns are bounded. Uncertain ownership and abandoned publication locks require manual recovery rather than a process sweep.
+- CSO lease recovery preserves 64-bit filesystem identities and nanosecond timestamps instead of rounding them. Adjacent identities remain distinct, replaced files remain protected, and ambiguous legacy state is still refused.
+- Settings mutations, backups and rollback resolve the selected symlink target and share its canonical lock. Links, private file modes and unrelated settings survive; changed or invalid targets are refused.
+- Artifact reinitialization updates managed allowlist entries while retaining the user suffix byte-for-byte, including comments and a missing final newline. Ambiguous markers and failed reads or assembly leave the original allowlist intact.
+
+### Changed
+- Required native macOS checks cover agent lifecycle, concurrent shutdown and linked settings. The native Windows CSO suite exercises repeated commands and exact high-ID lease recovery on NTFS.
+
+## [1.87.6.0] - 2026-09-18
+
+**Review gates keep their proof.**
+**Coverage audits read the code first.**
+
+Plan reviews now keep decisions, report checks, and publication checks in order when permissions, stale choices, or host metadata writes fail. Coverage audits for `/review`, `/ship`, and plan reviews read concrete source and test files before drawing their diagrams, so gaps are tied to code paths instead of diff and config noise.
+
+Generation now validates every host and expected artifact, and Codex evaluation records retain failed execution and assertions. Plan reviews carry approved decisions through scope changes and save complete reports before declaring completion. CEO and engineering reviews save and verify each question before asking it; Autoplan reads and verifies the current plan, then publishes the parent phase report before advancing.
+
+### Fixed
+- PR evaluation plans keep a small changed-behavior profile and selected quality judges, while weekly and manual runs retain fresh broad coverage. Deferred checks remain visible. Verified workflow-judge passes can be reused within the same PR for 24 hours only when their complete inputs and runtime match.
+- Free tests use a refreshed timing inventory and balanced isolated CI runners. `test:quick` provides an explicit partial feedback run; the complete suite remains required. Collection fixtures wait for actual readiness instead of repeating fixed startup delays. Recovered retries retain their original failure logs. Windows fixtures handle native paths and give independent scenarios separate deadlines; prepared Git fixtures disable background maintenance before copying.
+- `/plan-ceo-review` and `/plan-eng-review` preserve scoped decisions, required save/read-back checks, and report publication before declaring completion or advancing to the next section.
+- Coverage audits read source and test files in a dedicated step before mapping `[OK]` and `[GAP]` rows, while keeping framework and config context separate.
+- `/plan-eng-review` clarifies setup gates, targeted audit timing, report ordering, and Outside Voice output surfaces without losing saved-question verification.
+- The plan-count timeout fixture closes stdin without forcing process exit before diagnostics can be captured.
+- Ship host golden files and parity size guards match the generated Codex, Factory, and plan-review outputs.
+- Skill generation awaits every artifact across all hosts. Freshness checks detect missing output, validate generated content, preserve files and directories during dry runs, and report generation errors instead of accepting partial output.
+- Codex evaluation records follow the runner result and assertions. Timeouts, failed validations, inherited output pipes, and interrupted attempts retain their actual outcomes, captured usage, and bounded cleanup.
+- Paid test supervision allows each file to finish its existing cases and configured retries. CI and detached-run limits cover the full schedule without increasing model work budgets.
+- `gstack-decision-log --help` explains the accepted payload and safe shell quoting without creating state.
+- Plan reviews preserve the selected mode and prior approvals, compare each option against independent changes, and verify complete reports before recording completion. Engineering reviews assign independent decisions before drafting options, then audit and save the complete question before presenting it. Accepted scope includes the full selected option and its conditions; conflicting wording requires a corrected question and another answer. DX reviews use the same onboarding milestone for benchmarks, targets, examples, and measurement, and carry required factual verification forward without unnecessary approval questions. Outside-review suggestions use explicit approval menus; a dependency conflict returns to the affected decision before the plan is declared ready.
+- `/plan-ceo-review` follows ordered phases and carries every existing approval through scope changes, including reviews with no new approach choice. It saves the complete question, option facts, and source references, then verifies the actual outgoing question against those saved fields and sends it unchanged. It applies file permissions consistently to plans, reports, tasks, and review metadata. When writes are forbidden, it carries complete review inputs in chat and labels them not persisted. A failed save stops completion. Unavailable reviewers and missing scores remain unavailable instead of inheriting a prior score.
+- Design skills save mockups, previews, and approved designs under the configured state directory, and later steps discover them there. CEO plan discovery also follows the configured state directory in design input detection and prior-plan context.
+- `/autoplan` loads each review's complete instructions, waits for asynchronous reviewers, and sends the current amended plan to spec reviewers. Each phase reloads its closing steps and verifies the full current plan before announcing completion; amendment checkpoints stay separate from reviewer inputs. Native review drivers acknowledge current questions and permissions promptly, reject stale frames and late completions, and recognize the offered manual handoff.
+- `/office-hours` preserves structured review evidence through completion, keeps supported handoff content when replacing review sections, and develops distinct builder ideas. `/setup-gbrain` handles fresh state, remote-only sharing declines, and interrupted attempts without leaking fixture state.
+- Terminal sessions drain output before reporting completion. Browser shutdown cleans up only the configured server instance. Pairing fixtures use checked ports and bounded cleanup. Deprecated-flag scans exclude workspace caches before searching and propagate command and filesystem failures.
+- CSO public reports redact repository roots regardless of their path, while private snapshots retain the identity needed for verification. CSO also rejects a remote Docker endpoint with the correct diagnostic even when Docker is not installed.
+
+### Changed
+- CEO, engineering and Autoplan instructions fit their existing prompt-size limits while retaining approval, saved-question verification and report-publication requirements. Engineering uses one section-loading step and one approval check, with explicit rules for independent choices and unchanged question payloads.
+- Review fixtures provide the application context and independent contracts their assertions require, declare supported editing and feedback interfaces, and verify existing rollback behavior. The DX count scenario covers a bounded onboarding decision checkpoint and defers independent roadmap work. Design evaluations submit real board feedback before acknowledging it and grant image reads only inside their owned artifact directory. Sol evaluations generate skills in private storage without replacing checkout caches. Native fixtures match complete permission text and offered handoff choices. Shared helper and source-template dependencies select the affected evaluations; overlay tests distinguish correctness from performance measurements.
+- Contributor instructions require focused reproductions and adjacent checks before paid evaluations, independent scheduling, launcher preflight with executed-case counts, reuse of passing checks with unchanged inputs, and one full free-suite acceptance run after the code is frozen. Recurring parser failures require checking the supported input class against the pinned runtime.
+
+## [1.87.5.0] - 2026-09-17
+
+**Tests finish sooner without dropping checks.**
+**CI stops waiting on unused tooling.**
+
+This release speeds up gstack's development feedback loop. Terminal-driven checks react to new output instead of waiting through a fixed polling interval. Synthetic CLIs can announce when their input handlers are ready, while real CLI sessions retain their startup grace and input debounces. Completed processes no longer stay alive just to finish unused timeout timers.
+
+### The three numbers that matter
+
+Measured on the same Linux machine with Bun 1.4.0. Run each named file with `bun test <file>` on the previous release and this version. The polyfill and daemon numbers are three-run wall-time medians on both sides; the permission baseline is one observed run, and its after value is a three-run median. These are individual test-file measurements, not whole-suite or production latency claims.
+
+| Test file | Before | After | Δ |
+|---|---:|---:|---:|
+| `browse/test/bun-polyfill.test.ts` | 17.30s | 1.29s | −93% |
+| `design/test/daemon-discovery.test.ts` | 17.78s | 11.99s | −33% |
+| `test/plan-count-file-permission.test.ts` | 97.05s | 30.92s | −68% |
+
+The permission suite still makes all 115 assertions, including its deliberate stale-prompt delay. Terminal observations are capped at four per second so animated output cannot turn faster responses into a busy loop.
+
+### What this means for contributors
+
+Local test runs spend less time waiting after work is already complete. CI planning no longer pulls the execution image or waits for image lookup before producing its manifest; executors still require both prerequisites, and missing or failed results still fail reconciliation. Run `bun run test` for the complete free suite.
+
+### Itemized changes
+
+#### For contributors
+
+- Wake plan-count checks on output and exit, retain a silent metadata fallback, and settle output bursts before reading split redraws. Three synthetic CLI suites use explicit startup readiness without changing real-CLI startup behavior.
+- Cancel unused PTY and Node deadlines, stop already-exited daemon fixtures immediately, clear cookie-picker fixture sessions between suites, and await watchdog shutdown with a bounded completion signal.
+- Await telemetry append completion in consent tests instead of assuming disk writes finish within 30ms. Consent checks and error swallowing are unchanged.
+- Run gate and periodic CI planners directly on pinned Bun without dependency installation. Reports also skip unused installs; fork restrictions, executor images, and failure checks remain intact.
+- Retain failed eval shard logs from the hidden CI cache directory without uploading unrelated cache files.
+- Inject the CSO Git-pointer race at its first bounded read, preserving the original rejection assertion.
+- Preload the UI-positive design-review eval in an isolated plan fixture and require an answered native design question, rather than accepting scope or outside-review menus. Bind command-rejection checks to the invoked skill, not a child tool's diagnostics.
+- Generate skill documentation in a fresh checkout without importing browser runtime dependencies. Keep snapshot flag metadata and public exports unchanged.
+- Eliminate early-reader pipe races in artifact URL normalization and safety-hook matching. Multiline commands retain their warnings even with large trailing content.
+- Treat a publication removed by another CSO recovery helper during candidate enumeration as a bounded retry; replacement inodes still fail closed.
+
+## [1.87.4.0] - 2026-09-16
+
+**Failed checks stay failed.**
+**Health scores show what actually ran.**
+
+`/health` now keeps each checker's exit status and counts diagnostics from its complete output. Reports still show only the final 50 log lines. Scores name the checked and unavailable categories, so a partial run carries its coverage beside the number. Runs with no checks produce no numeric score or history entry.
+
+### The three numbers that matter
+
+Source: the synthetic checker in `test/health-capture.test.ts`, which emits 60 type errors followed by 80 context lines and exits 2. These measurements compare the v1.87.3.0 capture example with this version under default Bash without `pipefail`. Run `bun test test/health-capture.test.ts` to verify current behavior. These are correctness measurements, not production statistics.
+
+| Metric | Before | After | Δ |
+|---|---:|---:|---:|
+| Reported checker exit status | 0 | 2 | +2 |
+| Type errors available for scoring | 0 | 60 | +60 |
+| Displayed checker log lines | 50 | 50 | 0 |
+
+The failing checker no longer looks successful because `tail` succeeded. All 60 errors count even when the displayed tail contains only context.
+
+### What this means for developers
+
+You can distinguish a score backed by several checks from one based on a single available tool. Empty runs report `N/A — no checks ran`; capture errors also remain unscored and leave existing history unchanged. Trends compare only matching categories, so installing a new checker does not manufacture a regression or improvement. Run `/health` to see the score and its coverage together.
+
+### Itemized changes
+
+#### Fixed
+
+- **`/health` preserves failed checks and complete diagnostic counts.** Reports show the final 50 output lines while scoring the full log and the checker's actual exit status. Temporary capture errors remain explicit errors.
+- **Health scores disclose coverage.** Partial runs list checked and unavailable categories. Runs with no checks report `N/A — no checks ran`, leave numeric history unchanged, and have no trend. Score comparisons require matching categories.
+
+#### Changed
+
+- Routing evaluations choose among installed GStack skills, keeping built-in CLI skills outside the evaluated catalog. The model still chooses by matching the request to each skill's description.
+
+## [1.87.3.0] - 2026-09-15
+
+**Changed code needs another pass.**
+**Review freshness now checks both ends.**
+
+A green review now stays attached to the code that was there when the pass began. `/review` and `/ship` capture that content before reading it, then compare again when the pass finishes. If fixes changed the files, another pass has to review those fixes before the dashboard can call the result CURRENT. Older log-only records remain visible, but cannot stand in for a completed code review.
+
+A clean result requires a completed pass on unchanged content with no unresolved findings. A stopped or nonconverged run cannot clear the code-review row just because its commit has not moved.
+
+### The three numbers that matter
+
+Source: scenarios in `test/review-start-evidence.test.ts`, checked against released v1.87.0.0 and this version. Run `bun test test/review-start-evidence.test.ts` to verify current behavior. These are false CURRENT grades across five deterministic cases, not production incident estimates.
+
+| Cases incorrectly graded CURRENT | Before | After | Δ |
+|---|---:|---:|---:|
+| Mid-review edits: tracked and untracked source | 2 | 0 | -2 |
+| Log-only result without a captured review start | 1 | 0 | -1 |
+| Codex advisory findings: none or only some resolved | 2 | 0 | -2 |
+
+The old stamp could certify a review after its own fixes changed the tree. Those cases now stay STALE or UNVERIFIED, including an advisory-only Codex pass that leaves findings unresolved.
+
+### What this means for developers
+
+You can distinguish a completed, unchanged pass from a run that still needs attention before merging. Plan reviews keep their existing rules; they assess the plan rather than the checked-out source. Completion is still reviewer-reported, not proof that an LLM read every file. Run `/review` again after fixes and use the new result when preparing to ship.
+
+### Itemized changes
+
+#### Fixed
+
+- **Review freshness no longer certifies unreviewed fixes.** `/review` and `/ship` bind each diff pass to the content captured before it starts. Edits during review, incomplete passes, and older log-only records stay stale or unverified in the readiness dashboard and `/land-and-deploy`, even when HEAD has not moved. Plan-review evidence keeps its existing freshness rules.
+- **Codex readiness keeps unresolved findings visible.** Passing the critical-findings gate does not make a review CURRENT while advisory findings remain open. The gate's severity policy is unchanged.
+
+## [1.87.2.0] - 2026-09-15
+
+**Headless commands stop closing your logged-in browser.**
+**Other projects leave it alone.**
+
+Keep a headed GStack Browser open while another project uses headless browse commands. Starting, stopping, or disconnecting that project's headless daemon no longer kills the process holding your headed profile or removes its locks. The shared-profile cleanup now runs only for headed sessions, which actually use that profile. Headed startup keeps its stale-lock recovery.
+
+### The three numbers that matter
+
+Source: `bun test browse/test/chromium-profile-isolation.test.ts`, running the same nine-case regression suite against unchanged main and this release. Its headless CLI cases pair a real daemon with a controlled live process holding another project's profile locks. The headed startup controls use a stub daemon.
+
+| Metric | Before | After | Δ |
+|---|---|---|---|
+| Isolation suite cases passing | 3 of 9 | 9 of 9 | +6 |
+| Isolation suite cases failing | 6 of 9 | 0 of 9 | -6 |
+| Headed startup controls passing | 2 of 2 | 2 of 2 | Unchanged |
+
+The six previously failing cases now pass without deleting the foreign locks or killing their holder. Both explicit `--headed` and `BROWSE_HEADED=1` still clear stale locks before launch.
+
+This release separates headless cleanup from the shared headed profile. It does not give two headed sessions separate profiles, and it does not fix production Chromium process-identity capture. Tests that supply a recorded process identity verify its cleanup behavior; they are not evidence that a real launch records that identity.
+
+### What this means for multi-project work
+
+You can leave one browser open for work that needs your logins while another project starts or stops its own headless daemon. That removes the cross-project cleanup path behind the disappearing-window report, without claiming a solution for two headed browsers sharing one profile. Upgrade gstack and keep using your existing headed connection.
+
+### Itemized changes
+
+#### Fixed
+
+- Headless daemon startup, stop, disconnect, and crash cleanup leave another project's headed browser and shared profile locks alone. Headed launches retain stale-lock cleanup. (#2817)
+
+#### For contributors
+
+- Added nine regression cases for shared-profile isolation, including cleanup with a supplied recorded process identity. Production identity capture is not validated by those fixtures.
+- Extended only the outer deadline of the native Windows USERPROFILE integration test to 120 seconds. Its assertions and subprocess timeouts are unchanged.
+
+## [1.87.1.0] - 2026-09-15
+
+**Two vulnerable dependencies are fixed.**
+**Archive extraction keeps its boundary.**
+
+Sharp now resolves to 0.35.4, replacing the vulnerable libheif bundle, and adm-zip resolves to 0.6.1, which rejects extraction through destination symlinks. Both packages arrive through transitive dependencies, so the override changes also update the resolved lockfile and Sharp's platform packages. A normal archive still extracts, and the screenshot downscaler still reads and resizes PNGs. The fix does not change the pinned evaluation harness or add a vulnerability exception. This takes the dependency update from #2867 without bundling its separate override-expiry and scheduled-notification proposals into the security patch.
+
+### The three numbers that matter
+
+These results come from OSV-Scanner 2.3.8 with the existing `.osv-scanner.toml`, and `bun test test/dependency-security.test.ts` against the original and updated lockfiles.
+
+| Check | Before | After | Δ |
+|---|---:|---:|---:|
+| Unsuppressed OSV findings | 2 | 0 | -2 |
+| Security regression checks passing | 1/6 | 6/6 | +5 |
+| Destination-symlink escape cases rejected | 0/2 | 2/2 | +2 |
+
+The two escape cases cover a symlinked file and a symlinked directory. Both now refuse the write and leave the file outside the extraction directory unchanged. The scanner's existing exceptions remain in place; zero unsuppressed findings is not a claim that every dependency is vulnerability-free.
+
+### What this means for users
+
+The installed dependency tree no longer carries these two known-vulnerable versions. The screenshot path continues to handle PNGs, while archive extraction gains the upstream boundary check without a new configuration switch. Upgrade, then run `bun install --frozen-lockfile` to install the fixed dependency set.
+
+### Itemized changes
+
+#### Security
+- Upgrade the `sharp` override to 0.35.4 and `adm-zip` to 0.6.1, including the resolved Sharp platform packages. Addresses #2866. Contributed by @smsmatt in #2867.
+- Add regression coverage for fixed version floors, the loaded Sharp runtime, ordinary archive extraction, and file/directory destination symlink rejection.
+
+## [1.87.0.0] - 2026-09-11
+
+**`/cso` now distinguishes verified vulnerabilities from hypotheses and coverage gaps, and qualified comprehensive audits can produce replayable repair bundles without changing your working branch.**
+
+### Added
+- `/cso --doctor`, `--resume`, `--replay`, and `--recheck` diagnose prerequisites, recover interrupted work, repeat recorded verification, and establish closure from a fresh snapshot. `--base`, `--budget`, and `--offline` make scope, time, and network policy explicit.
+- A native `gstack-cso` helper captures tracked changes and nonignored source without Git hooks or staging, rejects unsafe files and changing inputs, redacts output before storage, enforces run budgets, and retains recoverable reports and bundles under the private gstack state root.
+- Comprehensive audits have declared preparation paths for Node, Bun, Python, and Rails, with SQLite and disposable PostgreSQL support. Dependency acquisition is separated from offline application execution, and target code runs only through the constrained local Docker policy.
+- Runtime-tested repair bundles record the original reproduction, an authenticated out-of-process security assertion, legitimate controls, the patch, dependency and configuration closures, provenance, and input hashes. Project-test completion remains `self_reported`; the stronger `tested` label is reserved for a future target-independent completion witness. Replay requires matching source; current-source rechecks collect new evidence instead of inheriting old status.
+- Scanner adapters normalize Gitleaks, OSV-Scanner, Semgrep, zizmor, Trivy, Schemathesis, and imported SARIF as candidate evidence with version, scope, freshness, exclusions, and failure records.
+- Protected release workflows, 40 vulnerable/fixed evaluation pairs across the four supported stacks, fault-injection tests, and runtime/scanner promotion gates qualify catalogs before comprehensive target execution is enabled.
+
+### Changed
+- Daily `/cso` audits remain bounded and static. Reports begin with `complete`, `partial`, or `not assessed`, publish supported findings as they become available, separate severity from confidence and evidence, and say exactly which security work was left undone.
+- Security judgment now models actors, assets, entrypoints, tenant boundaries, sensitive operations, and invariants; challenges each candidate against callers and controls; and evaluates development dependencies, availability, historical secrets, role-controlled input, and gstack-owned skills by attacker control and impact.
+- Setup builds the trusted launcher only when Bun supports all required no-autoload flags and the native toolchain is available. Unsupported hosts retain the rest of gstack and receive a precise `/cso` prerequisite instead of a partially trusted helper.
+- Legacy v2 reports remain readable as historical review evidence. They never inherit v3 reproduced, repair-tested, or current-source closure status.
+- The authenticated repository owner account `@garrytan` is exempt from the PR liveness screenshot; all other contributors still provide live `GSTACK PR` proof.
+
+### Security
+- Runtime startup strips injection variables, binds absolute executables and allowlisted environments, rejects remote Docker contexts, and uses pinned images, non-root containers, dropped capabilities, read-only roots, bounded writable storage and output, no published ports, and network-isolated reproduction groups.
+- Runtime and scanner catalogs ship unpromoted until protected native Docker qualification succeeds. On an unqualified installation, `/cso --doctor` reports the missing qualification and comprehensive target execution fails closed; static assessment remains available.
+
+## [1.86.0.0] - 2026-09-11
+
+### Added
+
+- **Get an independent Claude Code review from Codex.** Planning, review, shipping, design, documentation, and spec workflows select their outside reviewer from the running harness. Codex calls Claude Code; Claude Code calls Codex. Other supported harnesses expose both review skills.
+- **Review, challenge, or consult with `/claude-code`.** Reviews use only the context supplied by the parent. Consultations can read repository files and resume the previous conversation, using your configured Claude authentication and model.
+
+### Changed
+
+- **`/claude` is now `/claude-code`.** Run setup to migrate existing installations, including shared and copied installs. Each wrapper is available outside its own harness, and Kiro receives its native skills. Successful migration removes the old name without an alias; failed repairs preserve the working entry and user files.
+- **See which outside reviews actually completed.** Reports retain the provider and phase for each pass, including partial `/autoplan` coverage. Disabled, skipped, unavailable, and completed reviews stay distinct; historical records keep their original attribution.
+
+### Fixed
+
+- Failed, refused, empty, or malformed outside reviews can no longer count as a clean pass. Claude runner failures include authentication, timeout, and output overflow diagnoses, and stale skills stop before invoking their own harness.
+- Spec review stops when redaction fails, before sending the spec to a reviewer or saving it downstream.
+- Generated skills preserve their source files when an output directory links back into the installation, including on Windows.
+- Planning reviews request each unresolved decision before editing and carry approved remedies across sections without asking again. Choosing a scope or approach does not approve every finding. Reviews preserve stated requirements unless you authorize changing them.
+- Autoplan preserves the original plan and checks that each phase’s recorded requirements reach the next reviewer. It reconciles approvals with that record, reads the review skills installed for the current harness, and waits for reviewers and verified plan updates before advancing. Disabling extra plan or documentation review also skips replacement reviewers.
+
 ## [1.84.1.0] - 2026-09-09
 
 ### Changed

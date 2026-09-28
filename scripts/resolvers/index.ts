@@ -15,17 +15,18 @@
  */
 
 import type { TemplateContext, ResolverFn } from './types';
+import { outsideVoiceFor, outsideVoiceGuard, outsideVoiceInvocation, outsideVoicePreflight, outsideVoiceProvenance, generateOutsideVoiceRouting } from './outside-voice';
 
 // Domain modules
 import { generatePreamble } from './preamble';
 import { generateTestFailureTriage } from './preamble';
 import { generateDesignMethodology, generateDesignHardRules, generateDesignOutsideVoices, generateDesignReviewLite, generateDesignSketch, generateDesignSetup, generateDesignMockup, generateDesignShotgunLoop, generateTasteProfile, generateUXPrinciples, generateOverusedFonts, generateDesignSlopBullets, generateDesignDetector, generateDesignMdCheck } from './design';
 import { generateTestBootstrap, generateTestCoverageAuditPlan, generateTestCoverageAuditShip, generateTestCoverageGateShip } from './testing';
-import { generateReviewDashboard, generatePlanFileReviewReport, generateExitPlanModeGate, generateAntiShortcutClause, generateSpecReviewLoop, generateBenefitsFrom, generateCodexSecondOpinion, generateAdversarialStep, generateCodexPlanReview, generateCodexDocReview, generatePlanCompletionAuditShip, generatePlanCompletionGateShip, generatePlanCompletionAuditReview, generatePlanVerificationExec, generateScopeDrift, generateCrossReviewDedup } from './review';
+import { generateReviewDashboard, generatePlanFileReviewReport, generatePlanReviewApprovalCheck, generateExitPlanModeGate, generateAntiShortcutClause, generateSpecReviewLoop, generateBenefitsFrom, generateCodexSecondOpinion, generateAdversarialStep, generateCodexPlanReview, generateCodexDocReview, generatePlanCompletionAuditShip, generatePlanCompletionGateShip, generatePlanCompletionAuditReview, generatePlanVerificationExec, generateScopeDrift, generateCrossReviewDedup } from './review';
 import { generateSlugEval, generateSlugSetup, generateBaseBranchDetect, generateDeployBootstrap, generateQAMethodology, generateCoAuthorTrailer, generateChangelogWorkflow, generateCodexWebSearchFlag, generateCodexModelConfigFlag, generateCodexReviewModelConfigFlag, generateClaudeModelFlag, generateSetupCommand } from './utility';
 import { generateLearningsSearch, generateLearningsLog } from './learnings';
 import { generateConfidenceCalibration } from './confidence';
-import { generateInvokeSkill } from './composition';
+import { generateInvokeSkill, generateAutoplanReviewFile, generateAutoplanSnapshotTool, generateAutoplanPublicationHook } from './composition';
 import { generateReviewArmy } from './review-army';
 import { generateDxFramework } from './dx';
 import { generateGBrainContextLoad, generateGBrainSaveResults, generateBrainPreflight, generateBrainCacheRefresh, generateBrainWriteBack } from './gbrain';
@@ -37,8 +38,19 @@ import { generateThirdPartyActions } from './third-party-actions';
 import { generateAsideSetup, generateAsideCookbook, generateAsideResearch, generateUntrustedContentWarning, asideExecPrelude } from './aside';
 import { generateCommandReference, generateSnapshotFlags, generateBrowseSetup, generateBrowseFallback } from './browse';
 import { generateDesignDocDiscovery } from './design-doc-discovery';
+import { generateSharedLibsRubric } from './shared-libs';
 
 export const RESOLVERS: Record<string, ResolverFn> = {
+  AUTOPLAN_PUBLICATION_HOOK: generateAutoplanPublicationHook,
+  OUTSIDE_SELF_GUARD: (ctx, args) => outsideVoiceGuard({ ...ctx, host: args?.[0] === 'claude-code' ? 'codex' : 'claude' }),
+  OUTSIDE_VOICE_ROUTING: generateOutsideVoiceRouting,
+  OUTSIDE_LABEL: (ctx) => outsideVoiceFor(ctx).label,
+  NATIVE_LABEL: (ctx) => outsideVoiceFor(ctx).nativeLabel,
+  OUTSIDE_PROVIDER: (ctx) => outsideVoiceFor(ctx).id,
+  HOST_ID: (ctx) => ctx.host,
+  OUTSIDE_PREFLIGHT: (ctx, args) => outsideVoicePreflight(ctx, { disabledBehavior: args?.[0] === 'opt-in' ? 'opt-in' : 'codex-only' }),
+  OUTSIDE_INVOCATION: (ctx, args) => outsideVoiceInvocation(ctx, { timeoutMs: args?.[0] === 'spec' ? 120000 : 600000, gate: args?.[0] === 'spec' ? 'spec' : 'review', reasoningEffort: args?.[0] === 'spec' ? 'medium' : 'high' }),
+  OUTSIDE_PROVENANCE: (ctx, args) => outsideVoiceProvenance(ctx, args?.[0] ?? ctx.skillName),
   SLUG_EVAL: generateSlugEval,
   SLUG_SETUP: generateSlugSetup,
   CODEX_WEB_SEARCH_FLAG: generateCodexWebSearchFlag,
@@ -48,6 +60,7 @@ export const RESOLVERS: Record<string, ResolverFn> = {
   REDACT_INVOCATION_BLOCK: generateRedactInvocationBlock,
   THIRD_PARTY_ACTIONS: generateThirdPartyActions,
   DESIGN_DOC_DISCOVERY: generateDesignDocDiscovery,
+  SHARED_LIBS_RUBRIC: generateSharedLibsRubric,
   UNTRUSTED_CONTENT_WARNING: generateUntrustedContentWarning,
   COMMAND_REFERENCE: generateCommandReference,
   SNAPSHOT_FLAGS: generateSnapshotFlags,
@@ -72,6 +85,7 @@ export const RESOLVERS: Record<string, ResolverFn> = {
   REVIEW_DASHBOARD: generateReviewDashboard,
   PLAN_FILE_REVIEW_REPORT: generatePlanFileReviewReport,
   EXIT_PLAN_MODE_GATE: generateExitPlanModeGate,
+  PLAN_REVIEW_APPROVAL_CHECK: generatePlanReviewApprovalCheck,
   ANTI_SHORTCUT_CLAUSE: generateAntiShortcutClause,
   TEST_BOOTSTRAP: generateTestBootstrap,
   TEST_COVERAGE_AUDIT_PLAN: generateTestCoverageAuditPlan,
@@ -100,6 +114,8 @@ export const RESOLVERS: Record<string, ResolverFn> = {
   LEARNINGS_LOG: generateLearningsLog,
   CONFIDENCE_CALIBRATION: generateConfidenceCalibration,
   INVOKE_SKILL: generateInvokeSkill,
+  AUTOPLAN_REVIEW_FILE: generateAutoplanReviewFile,
+  AUTOPLAN_SNAPSHOT_TOOL: generateAutoplanSnapshotTool,
   CHANGELOG_WORKFLOW: generateChangelogWorkflow,
   REVIEW_ARMY: generateReviewArmy,
   CROSS_REVIEW_DEDUP: generateCrossReviewDedup,

@@ -70,15 +70,15 @@ function isCovered(key: string, arms: string[]): boolean {
   );
 }
 
-const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', 'build', '.next']);
+const SKIP_DIRS = new Set(['node_modules', '.git', '.context', 'dist', 'build', '.next']);
 
 /** Every `gstack-config get <key>` call site in the tree. */
-function keysReadInTree(): string[] {
+function keysReadInTree(root = ROOT): string[] {
   const keys = new Set<string>();
   // [ \t]+ rather than \s+: \s crosses newlines and would pair a trailing
   // "gstack-config get" with the first word of the next line.
   const re = /gstack-config["']?[ \t]+get[ \t]+([a-zA-Z0-9_]+)/g;
-  const stack = [ROOT];
+  const stack = [root];
   while (stack.length) {
     const cur = stack.pop()!;
     let entries: fs.Dirent[];
@@ -95,7 +95,7 @@ function keysReadInTree(): string[] {
         continue;
       }
       // Skip this file: its own prose cites example keys.
-      if (ent.name === SELF) continue;
+      if (ent.name === SELF || ent.name === 'CHANGELOG.md') continue;
       if (!/\.(md|ts|sh)$|^gstack-[a-z-]+$/.test(ent.name)) continue;
       let text: string;
       try {
@@ -110,6 +110,35 @@ function keysReadInTree(): string[] {
 }
 
 describe('gstack-config defaults (gate, free)', () => {
+  test('retired checkpoint keys have no defaults or advertised configuration', () => {
+    expect(fs.readFileSync(CONFIG_BIN, 'utf8')).not.toMatch(/checkpoint/i);
+    for (const key of ['checkpoint_mode', 'checkpoint_push']) {
+      expect(defaultArms()).not.toContain(key);
+      expect(get(key)).toEqual({ out: '', code: 1 });
+    }
+    for (const command of ['list', 'defaults']) {
+      const result = spawnSync('bash', [CONFIG_BIN, command], {
+        encoding: 'utf8', timeout: 30_000,
+        env: { PATH: process.env.PATH, HOME: STATE, GSTACK_STATE_ROOT: STATE },
+      });
+      expect(result.status).toBe(0);
+      expect(result.stdout).not.toMatch(/checkpoint_mode|checkpoint_push/);
+    }
+  });
+
+  test('workspace history does not add call sites to the source census', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'gstack-config-census-'));
+    try {
+      fs.mkdirSync(path.join(root, '.context', 'old-checkout'), { recursive: true });
+      fs.writeFileSync(path.join(root, 'active.md'), 'gstack-config get question_tuning\n');
+      fs.writeFileSync(path.join(root, '.context', 'old-checkout', 'old.md'), 'gstack-config get retired_workspace_key\n');
+      fs.writeFileSync(path.join(root, 'CHANGELOG.md'), 'Previously used gstack-config get retired_release_key\n');
+      expect(keysReadInTree(root)).toEqual(['question_tuning']);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   test('every key read in the tree is covered by the DEFAULTS table', () => {
     const arms = defaultArms();
     expect(arms.length).toBeGreaterThan(10); // the parse actually found the table

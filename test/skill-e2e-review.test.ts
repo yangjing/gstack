@@ -1,6 +1,6 @@
 import { describe, test, expect, beforeAll, afterAll } from 'bun:test';
 import { JUDGE_MS, CAPTURE_MS } from './helpers/eval-budgets';
-import { runSkillTest } from './helpers/session-runner';
+import { runSkillTest, SESSION_DRAIN_GRACE_MS } from './helpers/session-runner';
 import {
   ROOT, browseBin, runId, evalsEnabled, selectedTests,
   describeIfSelected, testConcurrentIfSelected,
@@ -15,6 +15,8 @@ import * as os from 'os';
 import { installFakeImpeccable } from './helpers/fake-impeccable';
 
 const evalCollector = createEvalCollector('e2e-review');
+// Capture cleanup and recording must finish before Bun starts its retry.
+const REVIEW_FINALIZE_MS = SESSION_DRAIN_GRACE_MS + 5_000;
 
 // --- B5: Review skill E2E ---
 
@@ -91,13 +93,14 @@ Write your review findings to ${reviewDir}/review-output.md`,
         reviewContent.includes('unsanitized');
       expect(hasSqlContent).toBe(true);
     }
-  }, CAPTURE_MS);
+  }, CAPTURE_MS + REVIEW_FINALIZE_MS);
 });
 
 // --- Review: Enum completeness E2E ---
 
 describeIfSelected('Review enum completeness E2E', ['review-enum-completeness'], () => {
   let enumDir: string;
+  let enumCaptureSequence = 0;
 
   beforeAll(() => {
     enumDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skill-e2e-enum-'));
@@ -148,25 +151,32 @@ The diff adds a new "returned" status to the Order model. Your job is to check i
       maxTurns: 15,
       timeout: JUDGE_MS,
       testName: 'review-enum-completeness',
-      runId,
+      runId: `${process.env.EVALS_RUN_ID ?? runId}-review-enum-${process.pid}-${++enumCaptureSequence}`,
+      publicStreamDiagnostics: true,
     });
 
     logCost('/review enum', result);
-    recordE2E(evalCollector, '/review enum completeness', 'Review enum completeness E2E', result);
-    expect(result.exitReason).toBe('success');
+    let passed = false;
+    try {
+      expect(result.exitReason).toBe('success');
 
-    // Verify the review caught the missing enum handlers
-    const reviewPath = path.join(enumDir, 'review-output.md');
-    if (fs.existsSync(reviewPath)) {
-      const review = fs.readFileSync(reviewPath, 'utf-8');
-      // Should mention the missing "returned" handling in at least one of the methods
-      const mentionsReturned = review.toLowerCase().includes('returned');
-      const mentionsEnum = review.toLowerCase().includes('enum') || review.toLowerCase().includes('status');
-      const mentionsCritical = review.toLowerCase().includes('critical');
-      expect(mentionsReturned).toBe(true);
-      expect(mentionsEnum || mentionsCritical).toBe(true);
+      // Verify the review caught the missing enum handlers
+      const reviewPath = path.join(enumDir, 'review-output.md');
+      if (fs.existsSync(reviewPath)) {
+        const review = fs.readFileSync(reviewPath, 'utf-8');
+        // Should mention the missing "returned" handling in at least one of the methods
+        const mentionsReturned = review.toLowerCase().includes('returned');
+        const mentionsEnum = review.toLowerCase().includes('enum') || review.toLowerCase().includes('status');
+        const mentionsCritical = review.toLowerCase().includes('critical');
+        expect(mentionsReturned).toBe(true);
+        expect(mentionsEnum || mentionsCritical).toBe(true);
+      }
+      passed = result.browseErrors.length === 0;
+    } finally {
+      recordE2E(evalCollector, '/review enum completeness', 'Review enum completeness E2E', result, { passed });
     }
-  }, JUDGE_MS);
+    // The runner can drain stderr for 5s after exit; reserve 1s for assertions/recording.
+  }, JUDGE_MS + REVIEW_FINALIZE_MS);
 });
 
 // --- Review: Design review lite E2E ---
@@ -280,7 +290,7 @@ Important: The design checklist should catch issues like blacklisted fonts, smal
       expect(detected).toBeGreaterThanOrEqual(4); // the LLM-checklist bar, unchanged by the detector
       expect(detectorSeen).toBe(true); // the fake engine's rows are deterministic; the review must carry them
     }
-  }, CAPTURE_MS);
+  }, CAPTURE_MS + REVIEW_FINALIZE_MS);
 });
 
 // Base branch detection tests for review/ship + the Review Dashboard Via
